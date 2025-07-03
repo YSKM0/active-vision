@@ -6,7 +6,7 @@ from tqdm import tqdm
 from transformers import AutoImageProcessor, AutoModel
 
 # Configuration
-image_dir = "/local/home/hanwliu/table/nerfstudio/images"  
+image_dir = "/local/home/hanwliu/table/nerfstudio/images"
 output_file = "/local/home/hanwliu/table/vlm_embedding/dinov2_embeddings.pkl"
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -17,7 +17,11 @@ model = AutoModel.from_pretrained(model_name).to(device)
 model.eval()
 
 # Gather image paths
-image_paths = [os.path.join(image_dir, fname) for fname in os.listdir(image_dir) if fname.endswith(".png")]
+image_paths = [
+    os.path.join(image_dir, fname)
+    for fname in os.listdir(image_dir)
+    if fname.endswith(".png")
+]
 
 # Dictionary to store embeddings
 image_embeddings = {}

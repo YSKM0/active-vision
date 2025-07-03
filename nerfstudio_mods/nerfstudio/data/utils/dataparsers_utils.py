@@ -20,7 +20,9 @@ from typing import List, Tuple
 import numpy as np
 
 
-def get_train_eval_split_fraction(image_filenames: List, train_split_fraction: float) -> Tuple[np.ndarray, np.ndarray]:
+def get_train_eval_split_fraction(
+    image_filenames: List, train_split_fraction: float
+) -> Tuple[np.ndarray, np.ndarray]:
     """
     Get the train/eval split fraction based on the number of images and the train split fraction.
 
@@ -42,7 +44,10 @@ def get_train_eval_split_fraction(image_filenames: List, train_split_fraction: f
 
     return i_train, i_eval
 
-def get_train_eval_split_filename(image_filenames: List) -> Tuple[np.ndarray, np.ndarray]:
+
+def get_train_eval_split_filename(
+    image_filenames: List,
+) -> Tuple[np.ndarray, np.ndarray]:
     """
     Get the train/eval split based on the filename of the images.
 
@@ -62,11 +67,16 @@ def get_train_eval_split_filename(image_filenames: List) -> Tuple[np.ndarray, np
         elif "eval" in basename:
             i_eval.append(idx)
         else:
-            raise ValueError("frame should contain train/eval in its name to use this eval-frame-index eval mode")
+            raise ValueError(
+                "frame should contain train/eval in its name to use this eval-frame-index eval mode"
+            )
 
     return np.array(i_train), np.array(i_eval)
 
-def get_train_eval_split_filename_fraction_val(image_filenames: List[str]) -> Tuple[np.ndarray, np.ndarray]:
+
+def get_train_eval_split_filename_fraction_val(
+    image_filenames: List[str],
+) -> Tuple[np.ndarray, np.ndarray]:
     """
     Split images based on whether filenames start with 'train' or 'val'.
 
@@ -79,12 +89,17 @@ def get_train_eval_split_filename_fraction_val(image_filenames: List[str]) -> Tu
     """
     basenames = [os.path.basename(image_filename) for image_filename in image_filenames]
 
-    i_train = np.array([i for i, name in enumerate(basenames) if name.startswith("train")])
+    i_train = np.array(
+        [i for i, name in enumerate(basenames) if name.startswith("train")]
+    )
     i_eval = np.array([i for i, name in enumerate(basenames) if name.startswith("val")])
 
     return i_train, i_eval
 
-def get_train_eval_split_interval(image_filenames: List, eval_interval: float) -> Tuple[np.ndarray, np.ndarray]:
+
+def get_train_eval_split_interval(
+    image_filenames: List, eval_interval: float
+) -> Tuple[np.ndarray, np.ndarray]:
     """
     Get the train/eval split based on the interval of the images.
 

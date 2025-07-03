@@ -16,7 +16,6 @@
 # print(f"Final PSNR: {final_psnr}")
 
 
-
 # import os
 # import matplotlib.pyplot as plt
 # from collections import defaultdict
@@ -114,17 +113,17 @@
 #     plt.show()
 
 
-
-
 import os
 import matplotlib.pyplot as plt
 from collections import defaultdict
 from tensorboard.backend.event_processing.event_accumulator import EventAccumulator
 
+
 def extract_final_value(events):
     if events:
         return events[-1].value
     return None
+
 
 def extract_tensorboard_metrics(event_file, tags):
     acc = EventAccumulator(event_file)
@@ -140,35 +139,33 @@ def extract_tensorboard_metrics(event_file, tags):
             print(f"Tag {tag} not found in {event_file}")
     return results
 
+
 def parse_method_and_view_from_path(path):
     for part in path.split(os.sep):
-        if '_' in part:
+        if "_" in part:
             try:
-                method, view = part.split('_')
+                method, view = part.split("_")
                 view = int(view)
                 return method.lower(), view
             except ValueError:
                 continue
     return None, None
 
-def plot_tensorboard_by_training_views(
-    event_files,
-    metrics=['psnr'],
-    tight_ylim=False,
-    mode='eval'  # 'eval' or 'train'
-):
 
+def plot_tensorboard_by_training_views(
+    event_files, metrics=["psnr"], tight_ylim=False, mode="eval"  # 'eval' or 'train'
+):
     tag_map = {
-        'eval': {
-            'psnr': "Eval Images Metrics Dict (all images)/psnr",
-            'ssim': "Eval Images Metrics Dict (all images)/ssim",
-            'lpips': "Eval Images Metrics Dict (all images)/lpips"
+        "eval": {
+            "psnr": "Eval Images Metrics Dict (all images)/psnr",
+            "ssim": "Eval Images Metrics Dict (all images)/ssim",
+            "lpips": "Eval Images Metrics Dict (all images)/lpips",
         },
-        'train': {
-            'psnr': "Train Metrics Dict/psnr",  # Corrected
-            'ssim': "Train Metrics Dict/ssim",  # If it exists
-            'lpips': "Train Metrics Dict/lpips"  # If it exists
-        }
+        "train": {
+            "psnr": "Train Metrics Dict/psnr",  # Corrected
+            "ssim": "Train Metrics Dict/ssim",  # If it exists
+            "lpips": "Train Metrics Dict/lpips",  # If it exists
+        },
     }
 
     if mode not in tag_map:
@@ -194,7 +191,7 @@ def plot_tensorboard_by_training_views(
                 data[metric][method][view] = val
 
     all_views = sorted(all_views)
-    colors = ['blue', 'green', 'red', 'orange', 'purple', 'cyan']
+    colors = ["blue", "green", "red", "orange", "purple", "cyan"]
     plt.figure(figsize=(12, 6))
 
     for i, metric in enumerate(metrics):
@@ -205,25 +202,33 @@ def plot_tensorboard_by_training_views(
                     x.append(v)
                     y.append(view_map[v])
             if x and y:
-                plt.plot(x, y, '-o',
-                         label=f"{method.upper()} - {metric.upper()} ({mode})",
-                         color=colors[(i * 3 + j) % len(colors)])
+                plt.plot(
+                    x,
+                    y,
+                    "-o",
+                    label=f"{method.upper()} - {metric.upper()} ({mode})",
+                    color=colors[(i * 3 + j) % len(colors)],
+                )
 
         if tight_ylim:
-            all_vals = [val for view_map in data[metric].values() for val in view_map.values()]
+            all_vals = [
+                val for view_map in data[metric].values() for val in view_map.values()
+            ]
             if all_vals:
                 min_val = min(all_vals)
                 max_val = max(all_vals)
                 margin = (max_val - min_val) * 0.2
                 plt.ylim(min_val - margin, max_val + margin)
             else:
-                print(f"[Warning] No data available for metric '{metric}' in mode '{mode}', skipping y-limit adjustment.")
+                print(
+                    f"[Warning] No data available for metric '{metric}' in mode '{mode}', skipping y-limit adjustment."
+                )
 
     plt.xlabel("Training Views")
     plt.ylabel("Metric Value")
     plt.title(f"{mode.capitalize()} Metric Trends Across Training Views")
     plt.xticks(all_views)
-    plt.grid(True, linestyle='--', alpha=0.5)
+    plt.grid(True, linestyle="--", alpha=0.5)
     plt.legend()
     plt.tight_layout()
     plt.show()
@@ -268,13 +273,10 @@ event_files = [
 #     tight_ylim=False
 # )
 plot_tensorboard_by_training_views(
-    event_files,
-    metrics=['psnr'],
-    tight_ylim=True,
-    mode='train'  # or 'eval'
+    event_files, metrics=["psnr"], tight_ylim=True, mode="train"  # or 'eval'
 )
 
 
 # All scalar tags:
 # ['learning_rate/means', 'Train Iter (time)', 'ETA (time)', 'Train Loss', 'Train Loss Dict/main_loss', 'Train Loss Dict/scale_reg', 'Train Metrics Dict/psnr', 'Train Metrics Dict/gaussian_count', 'GPU Memory (MB)', 'Train Rays / Sec', 'Test Rays / Sec', 'Eval Images Metrics/psnr', 'Eval Images Metrics/ssim', 'Eval Images Metrics/lpips', 'Eval Images Metrics/num_rays', 'Eval Images Metrics Dict (all images)/psnr', 'Eval Images Metrics Dict (all images)/ssim', 'Eval Images Metrics Dict (all images)/lpips', 'Eval Images Metrics Dict (all images)/num_rays_per_sec', 'Eval Images Metrics Dict (all images)/fps', 'Train Total (time)']
-# (instantngp) (base) hanwliu@cnb-d102-57:~/nerfdirector$ 
+# (instantngp) (base) hanwliu@cnb-d102-57:~/nerfdirector$

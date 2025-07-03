@@ -14,21 +14,25 @@ device = "cuda" if torch.cuda.is_available() else "cpu"
 feature_extractor = VideoMAEFeatureExtractor.from_pretrained("MCG-NJU/videomae-base")
 model = VideoMAEModel.from_pretrained("MCG-NJU/videomae-base").to(device)
 
-transform = T.Compose([
-    T.Resize((224, 224)),
-    T.ToTensor(),
-    T.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
-])
+transform = T.Compose(
+    [
+        T.Resize((224, 224)),
+        T.ToTensor(),
+        T.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+    ]
+)
 
 # Prepare list of image paths (sorted to maintain continuity)
-image_paths = sorted([os.path.join(image_dir, f) for f in os.listdir(image_dir) if f.endswith(".png")])
+image_paths = sorted(
+    [os.path.join(image_dir, f) for f in os.listdir(image_dir) if f.endswith(".png")]
+)
 
 # Dictionary to store embeddings
 video_embeddings = {}
 failed_images = []
 
 # Batch settings
-batch_size = 16  
+batch_size = 16
 batch = []
 index_counter = 0
 
@@ -42,17 +46,19 @@ with torch.no_grad():
             # If the batch is full or at the end, process it
             if len(batch) == batch_size or img_path == image_paths[-1]:
                 video_tensor = torch.cat(batch).unsqueeze(0).to(device)
-                
+
                 # Try-catch for model inference
                 try:
                     outputs = model(video_tensor)
                     embedding = outputs.last_hidden_state.squeeze().cpu()
                 except Exception as e:
                     print(f"Model failed to process batch: {e}")
-                    failed_images.extend(image_paths[index_counter:index_counter + len(batch)])
+                    failed_images.extend(
+                        image_paths[index_counter : index_counter + len(batch)]
+                    )
                     batch = []
                     continue
-                
+
                 # Store embeddings for each image in the batch
                 for i in range(len(batch)):
                     frame_path = image_paths[index_counter]

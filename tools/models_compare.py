@@ -25,7 +25,7 @@
 # def plot_by_training_views(base_dir, model_names, view_numbers, metrics=['psnr'], tight_ylim=False, show_std=True, line_alpha=1.0):
 #     """
 #     Plots the metrics trends across different training views for multiple model names.
-    
+
 #     Parameters:
 #     - base_dir: str, path to the base directory
 #     - model_names: list of str, model identifiers
@@ -40,17 +40,17 @@
 
 #     for model_name in model_names:
 #         json_files = generate_json_paths(base_dir, model_name, view_numbers)
-        
+
 #         for file in json_files:
 #             if not os.path.exists(file):
 #                 print(f"File not found: {file}")
 #                 continue
-                
+
 #             with open(file, 'r') as f:
 #                 d = json.load(f)
 #                 exp_name = d.get('experiment_name', os.path.basename(file))
 #                 results = d.get('results', {})
-                
+
 #                 method = model_name
 #                 view = int(file.split('_')[-1].split('.')[0])
 #                 all_views.add(view)
@@ -117,7 +117,6 @@
 #     plt.show()
 
 
-
 # # Example usage
 # base_dir = "/local/home/hanwliu/lab_record/evaluation_splatfacto"
 # model_names = ["clip_ViTB32", "clip_ViTL14", "clip_ViTL14_336px", "blip_ViTB16", "blip_large", "dinov2", "fvs", "rs"]
@@ -148,7 +147,7 @@ from typing import List, Optional
 
 
 def generate_json_paths(base_dir: str, model_name: str, view_numbers: List[int]):
-    prefix = model_name if model_name in ['fvs', 'rs'] else 'vlm'
+    prefix = model_name if model_name in ["fvs", "rs"] else "vlm"
     return [
         os.path.join(base_dir, model_name, f"{prefix}_{v}/{prefix}_{v}.json")
         for v in view_numbers
@@ -159,7 +158,7 @@ def plot_by_training_views(
     base_dir: str,
     model_names: List[str],
     view_numbers: List[int],
-    metrics: List[str] = ['psnr'],
+    metrics: List[str] = ["psnr"],
     tight_ylim: bool = False,
     show_std: bool = True,
     line_alpha: float = 1.0,
@@ -168,15 +167,18 @@ def plot_by_training_views(
 ):
     # ── read upper-bound json ────────────────────────────────────────────
     if show_upper_bound:
-        ub_path = (upper_bound_path if upper_bound_path is not None
-                   else os.path.join(base_dir, 'full', 'full.json'))
+        ub_path = (
+            upper_bound_path
+            if upper_bound_path is not None
+            else os.path.join(base_dir, "full", "full.json")
+        )
         if not os.path.exists(ub_path):
             raise FileNotFoundError(
                 f"Upper-bound json not found: {ub_path}. "
                 "Provide a correct `upper_bound_path` or turn off `show_upper_bound`."
             )
-        with open(ub_path, 'r') as f:
-            ub_results = json.load(f).get('results', {})
+        with open(ub_path, "r") as f:
+            ub_results = json.load(f).get("results", {})
         upper_values = {m: ub_results.get(m) for m in metrics}
     # --------------------------------------------------------------------
 
@@ -188,13 +190,13 @@ def plot_by_training_views(
             if not os.path.exists(fp):
                 print(f"[warn] file not found: {fp}")
                 continue
-            with open(fp, 'r') as f:
+            with open(fp, "r") as f:
                 exp = json.load(f)
-            view = int(fp.split('_')[-1].split('.')[0])
+            view = int(fp.split("_")[-1].split(".")[0])
             all_views.add(view)
             for m in metrics:
-                val = exp['results'].get(m)
-                std = exp['results'].get(f"{m}_std", 0.0)
+                val = exp["results"].get(m)
+                std = exp["results"].get(f"{m}_std", 0.0)
                 if val is None:
                     print(f"[warn] missing {m} in {exp.get('experiment_name', fp)}")
                     continue
@@ -204,13 +206,12 @@ def plot_by_training_views(
 
     # ── plotting ────────────────────────────────────────────────────────
     plt.figure(figsize=(12, 6))
-    cmap = cm.get_cmap('tab20')
+    cmap = cm.get_cmap("tab20")
     colour_iter = iter(cmap(np.linspace(0, 1, sum(len(data[m]) for m in metrics))))
-    colour_map = {(m, mdl): next(colour_iter)
-                  for m in metrics for mdl in data[m]}
+    colour_map = {(m, mdl): next(colour_iter) for m in metrics for mdl in data[m]}
 
     ax = plt.gca()
-    ub_ticks = []                           # collect UB values we add as yticks
+    ub_ticks = []  # collect UB values we add as yticks
 
     for m in metrics:
         for mdl, vmap in data[m].items():
@@ -223,9 +224,11 @@ def plot_by_training_views(
                     yerr.append(std)
             if xs:
                 ax.errorbar(
-                    xs, ys,
+                    xs,
+                    ys,
                     yerr=yerr if show_std else None,
-                    fmt='-o', capsize=4,
+                    fmt="-o",
+                    capsize=4,
                     color=colour_map[(m, mdl)],
                     alpha=line_alpha,
                     label=f"{mdl.upper()} – {m.upper()}",
@@ -233,9 +236,14 @@ def plot_by_training_views(
 
         if show_upper_bound and upper_values.get(m) is not None:
             ub_val = upper_values[m]
-            ax.axhline(y=ub_val, linestyle='--', linewidth=1.5,
-                       color='k', alpha=0.7,
-                       label=f"Upper Bound – {m.upper()}")
+            ax.axhline(
+                y=ub_val,
+                linestyle="--",
+                linewidth=1.5,
+                color="k",
+                alpha=0.7,
+                label=f"Upper Bound – {m.upper()}",
+            )
             ub_ticks.append(ub_val)
 
         if tight_ylim:
@@ -268,10 +276,11 @@ def plot_by_training_views(
     ax.set_ylabel("Metric Value")
     ax.set_title("Metric Trends Across Training Views")
     ax.set_xticks(all_views)
-    ax.grid(True, linestyle='--', alpha=0.4)
-    ax.legend(fontsize='small')
+    ax.grid(True, linestyle="--", alpha=0.4)
+    ax.legend(fontsize="small")
     plt.tight_layout()
     plt.show()
+
 
 # plot_by_training_views(
 #     base_dir="/local/home/hanwliu/lab_record/evaluation_splatfacto",
@@ -288,7 +297,7 @@ def plot_by_training_views(
 
 # plot_by_training_views(
 #     base_dir="/local/home/hanwliu/tnt/M60/evaluation_splatfacto",
-#     model_names=["FVS_clip_ViTB32", "FVS_clip_ViTL14", "FVS_clip_ViTL14_336px", 
+#     model_names=["FVS_clip_ViTB32", "FVS_clip_ViTL14", "FVS_clip_ViTL14_336px",
 #                  "FVS_blip_ViTB16", "FVS_dinov2", "FVS_dinov2_large_fullres", "fvs", "rs"],  #["fvs", "rs"],
 #     view_numbers=[5,10,15,20,25,30,40,50,60,70,80,90,100,110,120],
 #     metrics=['ssim'],
@@ -301,10 +310,19 @@ def plot_by_training_views(
 
 plot_by_training_views(
     base_dir="/media/hanwliu/HanwenDisk/ActiveVision/lab_record/evaluation_splatfacto",
-    model_names=["FVS_clip_ViTB32", "clip_ViTL14", "FVS_clip_ViTL14_336px",
-                 "FVS_blip_ViTB16", "FVS_dinov2", "FVS_dinov2_large_fullres", "FVS_VLM_clip_ViTL14", "fvs", "rs"],
-    view_numbers=[5,10,15,20,25,30,40,50,60,70,80,90,100,110,120],
-    metrics=['psnr'],
+    model_names=[
+        "FVS_clip_ViTB32",
+        "clip_ViTL14",
+        "FVS_clip_ViTL14_336px",
+        "FVS_blip_ViTB16",
+        "FVS_dinov2",
+        "FVS_dinov2_large_fullres",
+        "FVS_VLM_clip_ViTL14",
+        "fvs",
+        "rs",
+    ],
+    view_numbers=[5, 10, 15, 20, 25, 30, 40, 50, 60, 70, 80, 90, 100, 110, 120],
+    metrics=["psnr"],
     tight_ylim=False,
     show_std=False,
     line_alpha=0.65,

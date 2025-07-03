@@ -15,18 +15,18 @@ transforms_paths = [
 
 # Use RGB tuples for colors (Red for first set, Blue for second set)
 colors = [
-    (255, 0, 0),       # Red
-    (0, 0, 255),       # Blue
-    (0, 255, 0),       # Green
-    (255, 165, 0),     # Orange
-    (128, 0, 128),     # Purple
-    (0, 255, 255),     # Cyan
-    (255, 255, 0),     # Yellow
-    (255, 192, 203),   # Pink
-    (165, 42, 42),     # Brown
-    (0, 128, 128),     # Teal
-    (0, 100, 0),       # Dark Green
-    (75, 0, 130),      # Indigo
+    (255, 0, 0),  # Red
+    (0, 0, 255),  # Blue
+    (0, 255, 0),  # Green
+    (255, 165, 0),  # Orange
+    (128, 0, 128),  # Purple
+    (0, 255, 255),  # Cyan
+    (255, 255, 0),  # Yellow
+    (255, 192, 203),  # Pink
+    (165, 42, 42),  # Brown
+    (0, 128, 128),  # Teal
+    (0, 100, 0),  # Dark Green
+    (75, 0, 130),  # Indigo
 ]
 
 
@@ -69,7 +69,7 @@ for idx, path in enumerate(transforms_paths):
             axes_length=0.1,  # Length of the axes
             axes_radius=0.005,  # Radius of the axes
             origin_color=colors[idx],  # Color based on dataset
-            visible=False
+            visible=False,
         )
 
         # Conditionally add frustums based on the toggle
@@ -82,27 +82,10 @@ for idx, path in enumerate(transforms_paths):
                 wxyz=wxyz,
                 position=position,
                 color=colors[idx],
-                line_width=1
+                line_width=1,
             )
 
 server.sleep_forever()
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 # import json

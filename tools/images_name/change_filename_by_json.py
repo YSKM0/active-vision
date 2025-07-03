@@ -63,7 +63,6 @@
 #     print(f"\n✅ Completed renaming {len(renamed_files)} files.")
 
 
-
 # # "/local/home/hanwliu/lab_record/transforms_debug.json"
 # transform_path = "/local/home/hanwliu/lab_record/dataset/train/nerfdirector/RS/1/5/transforms.json"
 # image_dir = "/local/home/hanwliu/lab_record/nerfstudio/images"
@@ -73,6 +72,7 @@ import os
 import json
 import shutil
 
+
 def rename_images_to_match_transforms(transform_path, image_dir):
     """
     Rename image files in image_dir to match filenames in transforms.json.
@@ -81,19 +81,19 @@ def rename_images_to_match_transforms(transform_path, image_dir):
         transform_path (str): Path to transforms.json file.
         image_dir (str): Path to the directory containing the image files.
     """
-    with open(transform_path, 'r') as f:
+    with open(transform_path, "r") as f:
         data = json.load(f)
 
     renamed_files = []
 
-    for frame in data['frames']:
-        expected_name = os.path.basename(frame['file_path'])
+    for frame in data["frames"]:
+        expected_name = os.path.basename(frame["file_path"])
 
         # Extract base name by stripping known prefixes
         base_name = expected_name
-        for prefix in ['train_', 'val_', 'eval_']:
+        for prefix in ["train_", "val_", "eval_"]:
             if base_name.startswith(prefix):
-                base_name = base_name[len(prefix):]
+                base_name = base_name[len(prefix) :]
                 break
 
         # Construct all candidate existing filenames
@@ -114,7 +114,9 @@ def rename_images_to_match_transforms(transform_path, image_dir):
         dst_path = os.path.join(image_dir, expected_name)
 
         if src_path is None:
-            print(f"[WARNING] No matching file for {expected_name} (tried: {possible_names})")
+            print(
+                f"[WARNING] No matching file for {expected_name} (tried: {possible_names})"
+            )
             continue
 
         if src_path == dst_path:
@@ -131,11 +133,11 @@ def rename_images_to_match_transforms(transform_path, image_dir):
     print(f"\n✅ Completed renaming {len(renamed_files)} files.")
 
 
-# Update images name 
+# Update images name
 
 # For lab record
 transform_path = "/local/home/hanwliu/table/dataset/train/nerfdirector/dinov2_large_fullres/1/120/transforms.json"
-image_dir = "/local/home/hanwliu/table/nerfstudio/images_4" 
+image_dir = "/local/home/hanwliu/table/nerfstudio/images_4"
 
 # # For tnt
 # transform_path = "/local/home/hanwliu/tnt/M60/dataset/nerfdirector/FVS_dinov2_large_fullres/1/10/transforms.json"
@@ -145,4 +147,3 @@ image_dir = "/local/home/hanwliu/table/nerfstudio/images_4"
 rename_images_to_match_transforms(transform_path, image_dir)
 
 # FVS_clip_ViTL14 dinov2_large_fullres
-

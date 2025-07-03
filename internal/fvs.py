@@ -1,14 +1,17 @@
 import numpy as np
 from sklearn.metrics.pairwise import cosine_similarity
 
-def build_distance_matrix(selected_indices,
-                          sampling_method,
-                          dist_type,
-                          all_camera_centers=None,
-                          embeddings=None,
-                          emb2frame=None,
-                          alpha=0.5,
-                          vlm_dist_type="cos"):
+
+def build_distance_matrix(
+    selected_indices,
+    sampling_method,
+    dist_type,
+    all_camera_centers=None,
+    embeddings=None,
+    emb2frame=None,
+    alpha=0.5,
+    vlm_dist_type="cos",
+):
     """
     Return an N×N matrix of pair-wise distances for the views listed in
     `selected_indices`, where N == len(selected_indices).
@@ -49,7 +52,9 @@ def build_distance_matrix(selected_indices,
     # map frame-id → embedding row (only needed if using embeddings)
     if sampling_method in {"vlm", "fvs_vlm"}:
         if embeddings is None or emb2frame is None:
-            raise ValueError("embeddings and emb2frame must be provided for vlm/fvs_vlm")
+            raise ValueError(
+                "embeddings and emb2frame must be provided for vlm/fvs_vlm"
+            )
         fid2row = {fid: r for r, fid in enumerate(emb2frame)}
         vecs = np.stack([embeddings[fid2row[idx]] for idx in selected_indices], axis=0)
 
@@ -104,6 +109,7 @@ def build_distance_matrix(selected_indices,
 
     return dist_mat
 
+
 def cosine_dist(x, y):
     """
     Compute cosine distance (1 - cosine similarity) between vector x and matrix y,
@@ -113,34 +119,37 @@ def cosine_dist(x, y):
     cos_sim = cosine_similarity(x.reshape(1, -1), y)[0]
     return 1 - cos_sim
 
+
 def great_circle_dist(p1, p2):
-    ''' Caluclate the great-circle distance between reference point and others
+    """Caluclate the great-circle distance between reference point and others
 
     Args:
     p1: numpy array with shape [d,], reference point
     p2: numpy array with shape [N, d,], target points
     is_spherical: bool
-    '''
+    """
     chord = np.sqrt(((p1 - p2) ** 2).sum(-1))
-    
+
     chord = np.clip(chord, -2.0, 2.0)
     return 2 * np.arcsin(chord / 2.0)
 
+
 def euclidean_dist(p1, p2):
-    ''' Compute the Euclidean distance between reference point and others in cartessian coordinate
-    
+    """Compute the Euclidean distance between reference point and others in cartessian coordinate
+
     Args:
         p1: numpy array with the shape [3]
         p2: numpy array with the shape [N, 3]
-    '''
-    
+    """
+
     p1 = np.reshape(p1, (1, 3))
-    dist = np.sum( (p2 - p1) ** 2, axis=1 )
-    
+    dist = np.sum((p2 - p1) ** 2, axis=1)
+
     return dist
 
-def farthest_view_sampling(K, candidates, seed, dist_type='euc', selected_status=[]):
-    ''' Farthest view sampling according to the distance between camera centers
+
+def farthest_view_sampling(K, candidates, seed, dist_type="euc", selected_status=[]):
+    """Farthest view sampling according to the distance between camera centers
 
     Args:
         K: int, number of views to be selected
@@ -150,17 +159,14 @@ def farthest_view_sampling(K, candidates, seed, dist_type='euc', selected_status
         selected_status: list, indicate if one view is selected or not
     Return:
         selected_points: list, all selected camera centers
-    '''
-    dist_dict = {
-        'gcd' : 'great_circle_dist',
-        'euc' : 'euclidean_dist'
-    }
-    
+    """
+    dist_dict = {"gcd": "great_circle_dist", "euc": "euclidean_dist"}
+
     np.random.seed(seed)
 
     # randomly select N points into the waiting list
     points = np.array(candidates)
-    if dist_type == 'gcd':
+    if dist_type == "gcd":
         radius = np.linalg.norm(points, axis=1, keepdims=True)
         points = points / radius
 
@@ -169,10 +175,12 @@ def farthest_view_sampling(K, candidates, seed, dist_type='euc', selected_status
     dist = np.full(N, np.inf)
     point_left_idx = np.arange(N)
     selected_points = []
-    
+
     # initialize distance function
-    dist_func = dist_dict[dist_type] if dist_type in dist_dict.keys() else 'great_circle_dist'
-    print('current dist func is {}'.format(dist_func))
+    dist_func = (
+        dist_dict[dist_type] if dist_type in dist_dict.keys() else "great_circle_dist"
+    )
+    print("current dist func is {}".format(dist_func))
 
     # initialize dist list if selected_index provided
     # else random sample the first active point
@@ -182,7 +190,9 @@ def farthest_view_sampling(K, candidates, seed, dist_type='euc', selected_status
         for index in selected_points:
             p = points[index, :]
             dist_to_active_point = globals()[dist_func](p, points[point_left_idx])
-            dist[point_left_idx] = np.minimum(dist_to_active_point, dist[point_left_idx])
+            dist[point_left_idx] = np.minimum(
+                dist_to_active_point, dist[point_left_idx]
+            )
 
         selected_index = selected_points[-1]
         start = 0
@@ -193,27 +203,31 @@ def farthest_view_sampling(K, candidates, seed, dist_type='euc', selected_status
         selected_points.append(selected_index)
         point_left_idx = np.delete(point_left_idx, selected_index)
         start = 1
-        
+
     for i in range(start, K):
         active_point = points[selected_index, :]
 
         # get the distance from points in waiting list to the active point
-        dist_to_active_point = globals()[dist_func](active_point, points[point_left_idx])
+        dist_to_active_point = globals()[dist_func](
+            active_point, points[point_left_idx]
+        )
 
         # find the nearest neighbor in the selected list for each point in the waiting list
         dist[point_left_idx] = np.minimum(dist_to_active_point, dist[point_left_idx])
-        
+
         # find the farthest nearest neighbor
         selected_index = point_left_idx[np.argmax(dist[point_left_idx])]
-        
+
         selected_points.append(selected_index)
         point_left_idx = np.delete(point_left_idx, np.argmax(dist[point_left_idx]))
 
-
     return selected_points
 
-def farthest_view_sampling_colmap(K, candidates, seed, D, dist_type='euc', selected_status=[]):
-    ''' Farthest view sampling according to both spatial and photogrammetric distance
+
+def farthest_view_sampling_colmap(
+    K, candidates, seed, D, dist_type="euc", selected_status=[]
+):
+    """Farthest view sampling according to both spatial and photogrammetric distance
 
     Args:
         K: int, number of views to be selected
@@ -224,21 +238,18 @@ def farthest_view_sampling_colmap(K, candidates, seed, D, dist_type='euc', selec
         selected_status: list, indicate if one view is selected or not
     Return:
         selected_points: list, all selected camera centers
-    '''
-    dist_dict = {
-        'gcd' : 'great_circle_dist',
-        'euc' : 'euclidean_dist'
-    }
-    
+    """
+    dist_dict = {"gcd": "great_circle_dist", "euc": "euclidean_dist"}
+
     np.random.seed(seed)
 
     # randomly select N points into the waiting list
     points = np.array(candidates)
     d = D
-    if dist_type == 'gcd':
+    if dist_type == "gcd":
         radius = np.linalg.norm(points, axis=1, keepdims=True)
         points = points / radius
-        d = D * np.pi # gcd's range: [0, pi]
+        d = D * np.pi  # gcd's range: [0, pi]
         print(d)
     elif dist_type == "euc":
         radius_list = np.linalg.norm(points, axis=1, keepdims=True)
@@ -250,10 +261,12 @@ def farthest_view_sampling_colmap(K, candidates, seed, D, dist_type='euc', selec
     dist = np.full(N, np.inf)
     point_left_idx = np.arange(N)
     selected_points = []
-    
+
     # initialize distance function
-    dist_func = dist_dict[dist_type] if dist_type in dist_dict.keys() else 'great_circle_dist'
-    print('current dist func is {}'.format(dist_func))
+    dist_func = (
+        dist_dict[dist_type] if dist_type in dist_dict.keys() else "great_circle_dist"
+    )
+    print("current dist func is {}".format(dist_func))
 
     # initialize dist list if selected_index provided
     # else random sample the first active point
@@ -263,12 +276,14 @@ def farthest_view_sampling_colmap(K, candidates, seed, D, dist_type='euc', selec
         for index in selected_points:
             p = points[index, :]
             dist_to_active_point = globals()[dist_func](p, points[point_left_idx])
-            
+
             # fetch 3d correspondence distance
             print("1.. Fetching [{}, ] from D...".format(index))
             dist_3d_to_active_point = d[index, point_left_idx]
             dist_to_active_point += dist_3d_to_active_point
-            dist[point_left_idx] = np.minimum(dist_to_active_point, dist[point_left_idx])
+            dist[point_left_idx] = np.minimum(
+                dist_to_active_point, dist[point_left_idx]
+            )
         selected_index = selected_points[-1]
         start = 0
     else:
@@ -277,30 +292,34 @@ def farthest_view_sampling_colmap(K, candidates, seed, D, dist_type='euc', selec
         selected_points.append(selected_index)
         point_left_idx = np.delete(point_left_idx, selected_index)
         start = 1
-        
+
     for i in range(start, K):
         active_point = points[selected_index, :]
 
         # get the distance from points in waiting list to the active point
-        dist_to_active_point = globals()[dist_func](active_point, points[point_left_idx])
-        
+        dist_to_active_point = globals()[dist_func](
+            active_point, points[point_left_idx]
+        )
+
         # fetch 3d correspondence distance
         print("2.. Fetching [{}, ] from D...".format(selected_index))
         dist_3d_to_active_point = d[selected_index, point_left_idx]
         dist_to_active_point += dist_3d_to_active_point
 
         dist[point_left_idx] = np.minimum(dist_to_active_point, dist[point_left_idx])
-        
+
         # find the neighbor satisfying: 1) the farthest nearest, and 2) the most different
         selected_index = point_left_idx[np.argmax(dist[point_left_idx])]
-        
+
         selected_points.append(selected_index)
         point_left_idx = np.delete(point_left_idx, np.argmax(dist[point_left_idx]))
 
-
     return selected_points
 
-def farthest_embedding_sampling(K, embeddings, seed=0, dist_type='cos', selected_status=None):
+
+def farthest_embedding_sampling(
+    K, embeddings, seed=0, dist_type="cos", selected_status=None
+):
     """
     Farthest sampling based on embedding distances instead of camera positions.
 
@@ -321,11 +340,10 @@ def farthest_embedding_sampling(K, embeddings, seed=0, dist_type='cos', selected
     N = embeddings.shape[0]
     assert K <= N, "K must be <= number of embeddings"
 
-    dist_funcs = {
-        'euc': euclidean_dist,
-        'cos': cosine_dist
-    }
-    assert dist_type in dist_funcs, f"dist_type must be one of {list(dist_funcs.keys())}"
+    dist_funcs = {"euc": euclidean_dist, "cos": cosine_dist}
+    assert (
+        dist_type in dist_funcs
+    ), f"dist_type must be one of {list(dist_funcs.keys())}"
 
     np.random.seed(seed)
 
@@ -362,15 +380,17 @@ def farthest_embedding_sampling(K, embeddings, seed=0, dist_type='cos', selected
 
     return new_emb_idx
 
+
 def farthest_view_sampling_vlm(
-        K,
-        points,                        # (N,3) camera centres
-        embeddings,                    # (N,D) VLM embeddings
-        seed=0,
-        alpha=1.0,                     # weight for VLM term
-        spatial_dist_type='euc',       # 'euc' or 'gcd'
-        vlm_dist_type='cos',           # 'cos' or 'euc'
-        selected_status=None):
+    K,
+    points,  # (N,3) camera centres
+    embeddings,  # (N,D) VLM embeddings
+    seed=0,
+    alpha=1.0,  # weight for VLM term
+    spatial_dist_type="euc",  # 'euc' or 'gcd'
+    vlm_dist_type="cos",  # 'cos' or 'euc'
+    selected_status=None,
+):
     """
     Greedy farthest-point sampling on a *combined* distance:
         d_total = d_spatial_norm + alpha * d_vlm_norm
@@ -384,37 +404,37 @@ def farthest_view_sampling_vlm(
     if selected_status is None:
         selected_status = []
 
-    points      = np.asarray(points)
-    embeddings  = np.asarray(embeddings)
-    N           = points.shape[0]
+    points = np.asarray(points)
+    embeddings = np.asarray(embeddings)
+    N = points.shape[0]
     assert K <= N, "K must be ≤ number of points/embeddings"
 
     # map distance functions ------------------------------------------
-    spatial_funcs = {'euc': euclidean_dist, 'gcd': great_circle_dist}
-    vlm_funcs     = {'euc': euclidean_dist, 'cos': cosine_dist}
+    spatial_funcs = {"euc": euclidean_dist, "gcd": great_circle_dist}
+    vlm_funcs = {"euc": euclidean_dist, "cos": cosine_dist}
     assert spatial_dist_type in spatial_funcs
-    assert vlm_dist_type     in vlm_funcs
+    assert vlm_dist_type in vlm_funcs
 
     # normalisation constants ----------------------------------------
-    if spatial_dist_type == 'euc':
+    if spatial_dist_type == "euc":
         max_spatial = 2 * np.max(np.linalg.norm(points, axis=1))  # scene diameter
-    else:                              # great-circle
+    else:  # great-circle
         # points must lie on unit sphere for gcd
         points = points / np.linalg.norm(points, axis=1, keepdims=True)
-        max_spatial = np.pi                                     # range of gcd
+        max_spatial = np.pi  # range of gcd
 
-    if vlm_dist_type == 'cos':
-        max_vlm = 2.0                                           # cosine-dist  ∈ [0,2]
+    if vlm_dist_type == "cos":
+        max_vlm = 2.0  # cosine-dist  ∈ [0,2]
     else:  # Euclidean on embeddings – approximate by diameter
         max_vlm = 2 * np.max(np.linalg.norm(embeddings, axis=1))
     # avoid zero division
     max_spatial = max(max_spatial, 1e-9)
-    max_vlm     = max(max_vlm,     1e-9)
+    max_vlm = max(max_vlm, 1e-9)
 
     # ---------------------------------------------------------------
     np.random.seed(seed)
-    dist_total  = np.full(N, np.inf)
-    all_idx     = np.arange(N)
+    dist_total = np.full(N, np.inf)
+    all_idx = np.arange(N)
 
     # ---- initial selection ----------------------------------------
     if selected_status:
@@ -424,19 +444,19 @@ def farthest_view_sampling_vlm(
 
     # update distance map w.r.t. current selection ------------------
     for idx in sel_idx:
-        ds   = spatial_funcs[spatial_dist_type](points[idx], points) / max_spatial
-        dv   = vlm_funcs[vlm_dist_type](embeddings[idx], embeddings) / max_vlm
+        ds = spatial_funcs[spatial_dist_type](points[idx], points) / max_spatial
+        dv = vlm_funcs[vlm_dist_type](embeddings[idx], embeddings) / max_vlm
         dist_total = np.minimum(dist_total, ds + alpha * dv)
 
     candidates = set(all_idx) - set(sel_idx)
-    new_idx    = []
+    new_idx = []
     while len(new_idx) < K:
         # pick the candidate with the largest "closest selected" distance
         nxt = max(candidates, key=lambda i: dist_total[i])
         new_idx.append(nxt)
 
-        ds   = spatial_funcs[spatial_dist_type](points[nxt], points) / max_spatial
-        dv   = vlm_funcs[vlm_dist_type](embeddings[nxt], embeddings) / max_vlm
+        ds = spatial_funcs[spatial_dist_type](points[nxt], points) / max_spatial
+        dv = vlm_funcs[vlm_dist_type](embeddings[nxt], embeddings) / max_vlm
         dist_total = np.minimum(dist_total, ds + alpha * dv)
 
         candidates.remove(nxt)

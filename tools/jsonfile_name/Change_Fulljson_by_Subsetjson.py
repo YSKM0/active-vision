@@ -2,7 +2,7 @@
 # Full json contains whole frames
 # We use partial to add prefix for full json and save in output transforms path
 # image folder can be omitted, otherwise we change image names
-# prefix can be change 
+# prefix can be change
 
 import json
 import re
@@ -10,11 +10,19 @@ from pathlib import Path
 import shutil
 
 # === CONFIG ===
-partial_transforms_path = Path("/local/home/hanwliu/lab_record/dataset/train0/nerfdirector/FVS/1/20/transforms.json")
-full_transforms_path = Path("/local/home/hanwliu/lab_record/dataset/train0/nerfdirector/transforms.json")
-output_transforms_path = Path("/local/home/hanwliu/lab_record/dataset/train0/nerfdirector/debug_fvs20/transforms.json")
+partial_transforms_path = Path(
+    "/local/home/hanwliu/lab_record/dataset/train0/nerfdirector/FVS/1/20/transforms.json"
+)
+full_transforms_path = Path(
+    "/local/home/hanwliu/lab_record/dataset/train0/nerfdirector/transforms.json"
+)
+output_transforms_path = Path(
+    "/local/home/hanwliu/lab_record/dataset/train0/nerfdirector/debug_fvs20/transforms.json"
+)
 
-image_folder = Path("/local/home/hanwliu/lab_record/dataset/train0/nerfdirector/debug_fvs20/images")  # Can be None or empty
+image_folder = Path(
+    "/local/home/hanwliu/lab_record/dataset/train0/nerfdirector/debug_fvs20/images"
+)  # Can be None or empty
 prefix = "train_"  # Customizable prefix
 
 # Step 1: Load both transforms

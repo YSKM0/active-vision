@@ -31,6 +31,7 @@ from nerfstudio.utils.rich_utils import CONSOLE
 
 import yaml
 
+
 @dataclass
 class ComputePSNR:
     """Load a checkpoint, compute some PSNR metrics, and save it to a JSON file."""
@@ -41,15 +42,20 @@ class ComputePSNR:
     output_path: Path = Path("output.json")
     # Optional path to save rendered outputs to.
     render_output_path: Optional[Path] = None
-        
+
     # HanwenNEW: for a different evaluation path
-    input_path: Optional[Path] = None  
+    input_path: Optional[Path] = None
     # HanwenNEW: write psnr on render image
     annotate_psnr_on_image: bool = False
 
-
-    eval_mode: Literal["fraction", "filename", "interval", "all", "filename_fraction_test", "filename_fraction_val"] = "filename_fraction_test"
-
+    eval_mode: Literal[
+        "fraction",
+        "filename",
+        "interval",
+        "all",
+        "filename_fraction_test",
+        "filename_fraction_val",
+    ] = "filename_fraction_test"
 
     def main(self) -> None:
         """Main function."""
@@ -68,11 +74,15 @@ class ComputePSNR:
             config_path_to_use = self.load_config
 
         config, pipeline, checkpoint_path, _ = eval_setup(config_path_to_use)
-        
+
         assert self.output_path.suffix == ".json"
         if self.render_output_path is not None:
             self.render_output_path.mkdir(parents=True, exist_ok=True)
-        metrics_dict = pipeline.get_average_eval_image_metrics(output_path=self.render_output_path, get_std=True, annotate_psnr_on_image = self.annotate_psnr_on_image)
+        metrics_dict = pipeline.get_average_eval_image_metrics(
+            output_path=self.render_output_path,
+            get_std=True,
+            annotate_psnr_on_image=self.annotate_psnr_on_image,
+        )
         self.output_path.parent.mkdir(parents=True, exist_ok=True)
         # Get the output and define the names to save to
         benchmark_info = {

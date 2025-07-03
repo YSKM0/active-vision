@@ -28,7 +28,13 @@ from typing import Any, Dict, List, Literal, Mapping, Optional, Tuple, Type, Uni
 import torch
 import torch.distributed as dist
 import torchvision.utils as vutils
-from rich.progress import BarColumn, MofNCompleteColumn, Progress, TextColumn, TimeElapsedColumn
+from rich.progress import (
+    BarColumn,
+    MofNCompleteColumn,
+    Progress,
+    TextColumn,
+    TimeElapsedColumn,
+)
 from torch import nn
 from torch.cuda.amp.grad_scaler import GradScaler
 from torch.nn import Parameter
@@ -42,6 +48,7 @@ from nerfstudio.utils import profiler
 
 from PIL import Image, ImageDraw, ImageFont
 import torchvision.transforms.functional as TF
+
 
 def module_wrapper(ddp_or_model: Union[DDP, Model]) -> Model:
     """
@@ -99,7 +106,9 @@ class Pipeline(nn.Module):
         """Returns the device that the model is on."""
         return self.model.device
 
-    def load_state_dict(self, state_dict: Mapping[str, Any], strict: Optional[bool] = None):
+    def load_state_dict(
+        self, state_dict: Mapping[str, Any], strict: Optional[bool] = None
+    ):
         is_ddp_model_state = True
         model_state = {}
         for key, value in state_dict.items():
@@ -112,9 +121,15 @@ class Pipeline(nn.Module):
                     is_ddp_model_state = False
         # remove "module." prefix added by DDP
         if is_ddp_model_state:
-            model_state = {key[len("module.") :]: value for key, value in model_state.items()}
+            model_state = {
+                key[len("module.") :]: value for key, value in model_state.items()
+            }
 
-        pipeline_state = {key: value for key, value in state_dict.items() if not key.startswith("_model.")}
+        pipeline_state = {
+            key: value
+            for key, value in state_dict.items()
+            if not key.startswith("_model.")
+        }
 
         try:
             self.model.load_state_dict(model_state, strict=True)
@@ -177,7 +192,11 @@ class Pipeline(nn.Module):
     @abstractmethod
     @profiler.time_function
     def get_average_eval_image_metrics(
-        self, step: Optional[int] = None, output_path: Optional[Path] = None, get_std: bool = False, annotate_psnr_on_image: Optional[bool] = False,
+        self,
+        step: Optional[int] = None,
+        output_path: Optional[Path] = None,
+        get_std: bool = False,
+        annotate_psnr_on_image: Optional[bool] = False,
     ):
         """Iterate over all the images in the eval dataset and get the average.
 
@@ -254,7 +273,10 @@ class VanillaPipeline(Pipeline):
         self.config = config
         self.test_mode = test_mode
         self.datamanager: DataManager = config.datamanager.setup(
-            device=device, test_mode=test_mode, world_size=world_size, local_rank=local_rank
+            device=device,
+            test_mode=test_mode,
+            world_size=world_size,
+            local_rank=local_rank,
         )
         # TODO make cleaner
         seed_pts = None
@@ -280,7 +302,10 @@ class VanillaPipeline(Pipeline):
 
         self.world_size = world_size
         if world_size > 1:
-            self._model = typing.cast(Model, DDP(self._model, device_ids=[local_rank], find_unused_parameters=True))
+            self._model = typing.cast(
+                Model,
+                DDP(self._model, device_ids=[local_rank], find_unused_parameters=True),
+            )
             dist.barrier(device_ids=[local_rank])
 
     @property
@@ -298,7 +323,9 @@ class VanillaPipeline(Pipeline):
             step: current iteration step to update sampler if using DDP (distributed)
         """
         ray_bundle, batch = self.datamanager.next_train(step)
-        model_outputs = self._model(ray_bundle)  # train distributed data parallel model if world_size > 1
+        model_outputs = self._model(
+            ray_bundle
+        )  # train distributed data parallel model if world_size > 1
         metrics_dict = self.model.get_metrics_dict(model_outputs, batch)
         loss_dict = self.model.get_loss_dict(model_outputs, batch, metrics_dict)
 
@@ -312,7 +339,9 @@ class VanillaPipeline(Pipeline):
         raise NotImplementedError
 
     @profiler.time_function
-    def get_eval_loss_dict(self, step: int) -> Tuple[Any, Dict[str, Any], Dict[str, Any]]:
+    def get_eval_loss_dict(
+        self, step: int
+    ) -> Tuple[Any, Dict[str, Any], Dict[str, Any]]:
         """This function gets your evaluation loss dict. It needs to get the data
         from the DataManager and feed it to the model's forward function
 
@@ -338,7 +367,9 @@ class VanillaPipeline(Pipeline):
         self.eval()
         camera, batch = self.datamanager.next_eval_image(step)
         outputs = self.model.get_outputs_for_camera(camera)
-        metrics_dict, images_dict = self.model.get_image_metrics_and_images(outputs, batch)
+        metrics_dict, images_dict = self.model.get_image_metrics_and_images(
+            outputs, batch
+        )
         assert "num_rays" not in metrics_dict
         metrics_dict["num_rays"] = (camera.height * camera.width * camera.size).item()
         self.train()
@@ -379,7 +410,9 @@ class VanillaPipeline(Pipeline):
             MofNCompleteColumn(),
             transient=True,
         ) as progress:
-            task = progress.add_task("[green]Evaluating all images...", total=num_images)
+            task = progress.add_task(
+                "[green]Evaluating all images...", total=num_images
+            )
             idx = 0
             for camera, batch in data_loader:
                 # time this the following line
@@ -387,7 +420,9 @@ class VanillaPipeline(Pipeline):
                 outputs = self.model.get_outputs_for_camera(camera=camera)
                 height, width = camera.height, camera.width
                 num_rays = height * width
-                metrics_dict, image_dict = self.model.get_image_metrics_and_images(outputs, batch)
+                metrics_dict, image_dict = self.model.get_image_metrics_and_images(
+                    outputs, batch
+                )
 
                 if output_path is not None:
                     for key in image_dict.keys():
@@ -400,16 +435,27 @@ class VanillaPipeline(Pipeline):
                             font = ImageFont.truetype("DejaVuSans.ttf", size=32)
                             psnr = metrics_dict.get("psnr", None)
                             if psnr is not None:
-                                draw.text((5, 5), f"PSNR: {psnr:.2f}", fill="white", font=font)
-                            img_pil.save(output_path / f"{image_prefix}_{key}_{idx:04d}.png")
+                                draw.text(
+                                    (5, 5), f"PSNR: {psnr:.2f}", fill="white", font=font
+                                )
+                            img_pil.save(
+                                output_path / f"{image_prefix}_{key}_{idx:04d}.png"
+                            )
                         else:
-                            vutils.save_image(img_tensor, output_path / f"{image_prefix}_{key}_{idx:04d}.png")
+                            vutils.save_image(
+                                img_tensor,
+                                output_path / f"{image_prefix}_{key}_{idx:04d}.png",
+                            )
 
                 assert "num_rays_per_sec" not in metrics_dict
-                metrics_dict["num_rays_per_sec"] = (num_rays / (time() - inner_start)).item()
+                metrics_dict["num_rays_per_sec"] = (
+                    num_rays / (time() - inner_start)
+                ).item()
                 fps_str = "fps"
                 assert fps_str not in metrics_dict
-                metrics_dict[fps_str] = (metrics_dict["num_rays_per_sec"] / (height * width)).item()
+                metrics_dict[fps_str] = (
+                    metrics_dict["num_rays_per_sec"] / (height * width)
+                ).item()
                 metrics_dict_list.append(metrics_dict)
                 progress.advance(task)
                 idx = idx + 1
@@ -418,13 +464,19 @@ class VanillaPipeline(Pipeline):
         for key in metrics_dict_list[0].keys():
             if get_std:
                 key_std, key_mean = torch.std_mean(
-                    torch.tensor([metrics_dict[key] for metrics_dict in metrics_dict_list])
+                    torch.tensor(
+                        [metrics_dict[key] for metrics_dict in metrics_dict_list]
+                    )
                 )
                 metrics_dict[key] = float(key_mean)
                 metrics_dict[f"{key}_std"] = float(key_std)
             else:
                 metrics_dict[key] = float(
-                    torch.mean(torch.tensor([metrics_dict[key] for metrics_dict in metrics_dict_list]))
+                    torch.mean(
+                        torch.tensor(
+                            [metrics_dict[key] for metrics_dict in metrics_dict_list]
+                        )
+                    )
                 )
 
         self.train()
@@ -432,12 +484,16 @@ class VanillaPipeline(Pipeline):
 
     @profiler.time_function
     def get_average_eval_image_metrics(
-        self, step: Optional[int] = None, output_path: Optional[Path] = None, get_std: bool = False, annotate_psnr_on_image: Optional[bool] = False, 
+        self,
+        step: Optional[int] = None,
+        output_path: Optional[Path] = None,
+        get_std: bool = False,
+        annotate_psnr_on_image: Optional[bool] = False,
     ):
         """Get the average metrics for evaluation images."""
-        assert hasattr(self.datamanager, "fixed_indices_eval_dataloader"), (
-            "datamanager must have 'fixed_indices_eval_dataloader' attribute"
-        )
+        assert hasattr(
+            self.datamanager, "fixed_indices_eval_dataloader"
+        ), "datamanager must have 'fixed_indices_eval_dataloader' attribute"
         image_prefix = "eval"
         return self.get_average_image_metrics(
             self.datamanager.fixed_indices_eval_dataloader,  # type: ignore
@@ -456,7 +512,8 @@ class VanillaPipeline(Pipeline):
             step: training step of the loaded checkpoint
         """
         state = {
-            (key[len("module.") :] if key.startswith("module.") else key): value for key, value in loaded_state.items()
+            (key[len("module.") :] if key.startswith("module.") else key): value
+            for key, value in loaded_state.items()
         }
         self.model.update_to_step(step)
         self.load_state_dict(state)
@@ -465,8 +522,12 @@ class VanillaPipeline(Pipeline):
         self, training_callback_attributes: TrainingCallbackAttributes
     ) -> List[TrainingCallback]:
         """Returns the training callbacks from both the Dataloader and the Model."""
-        datamanager_callbacks = self.datamanager.get_training_callbacks(training_callback_attributes)
-        model_callbacks = self.model.get_training_callbacks(training_callback_attributes)
+        datamanager_callbacks = self.datamanager.get_training_callbacks(
+            training_callback_attributes
+        )
+        model_callbacks = self.model.get_training_callbacks(
+            training_callback_attributes
+        )
         callbacks = datamanager_callbacks + model_callbacks
         return callbacks
 

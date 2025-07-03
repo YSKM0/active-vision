@@ -1,4 +1,4 @@
-# This file is for renaming the images name, for nerfstudio split the whole images into train and test 
+# This file is for renaming the images name, for nerfstudio split the whole images into train and test
 # So that the new transforms.json can find the images
 
 
@@ -16,6 +16,7 @@ transforms_path = Path("/local/home/hanwliu/lab_record/dataset/test0/transforms.
 train_ranges = [(1, 2000)]
 eval_ranges = [(2001, 2221)]
 
+
 # Function to determine split type based on frame ID
 def get_split(frame_id):
     for start, end in train_ranges:
@@ -25,6 +26,7 @@ def get_split(frame_id):
         if start <= frame_id <= end:
             return "eval"
     return None
+
 
 # Load original transforms.json
 with open(transforms_path, "r") as f:

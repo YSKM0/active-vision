@@ -2,7 +2,6 @@
 # This is applied on the test set's transforms.json
 
 
-
 # import json
 # import re
 
@@ -50,8 +49,9 @@ transforms_path = Path("/local/home/hanwliu/table/nerfstudio/transforms.json")
 output_transforms_path = Path("/local/home/hanwliu/table/dataset/transforms.json")
 
 # Split ranges (inclusive)
-train_ranges = [(1,555)]#[(1, 27), (46, 83)]
+train_ranges = [(1, 555)]  # [(1, 27), (46, 83)]
 eval_ranges = [(556, 740)]
+
 
 def get_split(frame_id):
     for start, end in train_ranges:
@@ -61,6 +61,7 @@ def get_split(frame_id):
         if start <= frame_id <= end:
             return "eval"
     return None  # Ignore others
+
 
 # Load original transforms
 with open(transforms_path, "r") as f:

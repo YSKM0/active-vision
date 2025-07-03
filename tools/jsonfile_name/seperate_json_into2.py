@@ -3,15 +3,14 @@
 # But we can use it as the camera position visualization
 
 
-
 # import json
 # import os
 
 # # === CONFIGURATION ===
-# input_path = "/local/home/hanwliu/test/nsdata/transforms.json"  
-# start1_output_path = "/local/home/hanwliu/Polycam/refined_510/nsdata/transforms.json" 
-# start2_output_path = "/local/home/hanwliu/Polycam/refined_277/nsdata/transforms.json" 
-# start3_output_path = "/local/home/hanwliu/Polycam/refined_658/nsdata/transforms.json" 
+# input_path = "/local/home/hanwliu/test/nsdata/transforms.json"
+# start1_output_path = "/local/home/hanwliu/Polycam/refined_510/nsdata/transforms.json"
+# start2_output_path = "/local/home/hanwliu/Polycam/refined_277/nsdata/transforms.json"
+# start3_output_path = "/local/home/hanwliu/Polycam/refined_658/nsdata/transforms.json"
 
 
 # # Frame range to extract
@@ -79,7 +78,7 @@ splits = [
     {
         "output_path": "/local/home/hanwliu/table/dataset/transforms_train.json",
         "start_frame": 1,
-        "end_frame": 555,#1664,
+        "end_frame": 555,  # 1664,
     },
     {
         "output_path": "/local/home/hanwliu/table/dataset/transforms_test.json",
@@ -98,13 +97,16 @@ splits = [
     # },
 ]
 
+
 # === HELPER FUNCTION ===
 def ensure_dir(path):
     os.makedirs(os.path.dirname(path), exist_ok=True)
 
+
 def get_frame_number(frame):
     file_path = frame["file_path"]
     return int(file_path.split("_")[-1].split(".")[0])
+
 
 # === MAIN PROCESSING ===
 
@@ -124,13 +126,14 @@ for split in splits:
 
     # Filter frames in the defined range
     selected_frames = [
-        frame for frame in all_frames
+        frame
+        for frame in all_frames
         if start_frame <= get_frame_number(frame) <= end_frame
     ]
 
     # Create split JSON structure
     split_data = {
-        #"camera_model": data.get("camera_model"),
+        # "camera_model": data.get("camera_model"),
         **shared_metadata,
         "frames": selected_frames,
     }

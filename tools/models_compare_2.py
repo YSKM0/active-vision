@@ -7,12 +7,14 @@ import numpy as np
 from collections import defaultdict
 from typing import List, Optional, Tuple, Dict
 
+
 def generate_json_paths(base_dir: str, model_name: str, view_numbers: List[int]):
-    prefix = model_name if model_name in ['fvs', 'rs'] else 'vlm'
+    prefix = model_name if model_name in ["fvs", "rs"] else "vlm"
     return [
         os.path.join(base_dir, model_name, f"{prefix}_{v}/{prefix}_{v}.json")
         for v in view_numbers
     ]
+
 
 def analyze_metrics_by_view(
     base_dir: str,
@@ -22,9 +24,9 @@ def analyze_metrics_by_view(
     *,
     return_diffs: bool = False,
 ) -> Tuple[
-        Dict[int, Dict[str, Dict[str, float]]],     # stats with model tags
-        Optional[List[Tuple[int, float, str, str]]]
-    ]:
+    Dict[int, Dict[str, Dict[str, float]]],  # stats with model tags
+    Optional[List[Tuple[int, float, str, str]]],
+]:
     """
     Compute per-view max / min / mean of *metric* across models
     and record which model attains the extremes.
@@ -62,24 +64,27 @@ def analyze_metrics_by_view(
         min_val, min_model = min(vm_list, key=lambda x: x[0])
 
         stats[view] = {
-            "max":  {"value": max_val, "model": max_model},
-            "min":  {"value": min_val, "model": min_model},
+            "max": {"value": max_val, "model": max_model},
+            "min": {"value": min_val, "model": min_model},
             "mean": mean(vals),
         }
 
     # -----------  optionally return spans -------------------------------------
     if return_diffs:
         diffs = [
-            (view,
-             s["max"]["value"] - s["min"]["value"],
-             s["max"]["model"],
-             s["min"]["model"])
+            (
+                view,
+                s["max"]["value"] - s["min"]["value"],
+                s["max"]["model"],
+                s["min"]["model"],
+            )
             for view, s in stats.items()
         ]
         diffs.sort(key=lambda x: x[1], reverse=True)
         return stats, diffs
 
     return stats, None
+
 
 def mean_rank_across_views(
     base_dir: str,
@@ -105,7 +110,7 @@ def mean_rank_across_views(
     metric : str, default 'psnr'
         Which metric key to read from each JSON’s 'results' section.
     higher_is_better : bool, default True
-        True  → higher metric values rank better (e.g. PSNR, SSIM)  
+        True  → higher metric values rank better (e.g. PSNR, SSIM)
         False → lower values rank better (e.g. LPIPS, loss)
     drop_if_missing : bool, default False
         If True, *exclude* views where a model lacks data from that model’s
@@ -141,7 +146,7 @@ def mean_rank_across_views(
         # sort within this view
         mv_list.sort(
             key=lambda x: x[1],
-            reverse=higher_is_better,        # descending if higher is better
+            reverse=higher_is_better,  # descending if higher is better
         )
 
         # assign ranks starting from 1
@@ -167,10 +172,11 @@ def mean_rank_across_views(
     # NEW: ensure every model in `model_names` is represented
     for m in model_names:
         if m not in {mr[0] for mr in mean_ranks}:
-            mean_ranks.append((m, float("inf")))   # or a large number / np.nan
+            mean_ranks.append((m, float("inf")))  # or a large number / np.nan
 
     mean_ranks.sort(key=lambda x: x[1])
     return mean_ranks
+
 
 def compare_fvs_vs_llm(
     base_dir: str,
@@ -220,7 +226,7 @@ def compare_fvs_vs_llm(
             view = int(fp.split("_")[-1].split(".")[0])
             if model == "fvs":
                 fvs_values[view] = res[metric]
-            elif model not in ("rs",):                 # LLM bucket
+            elif model not in ("rs",):  # LLM bucket
                 llm_values[view].append(res[metric])
 
     # ---------------- compare per view ----------------------------------
@@ -245,11 +251,12 @@ def compare_fvs_vs_llm(
 
     return llm_better, fvs_better
 
+
 def compare_baseline_vs_llm(
     base_dir: str,
     model_names: List[str],
     view_numbers: List[int],
-    baseline_model: str,                # 'fvs'  OR  'rs'
+    baseline_model: str,  # 'fvs'  OR  'rs'
     metric: str = "psnr",
     *,
     higher_is_better: bool = True,
@@ -289,7 +296,7 @@ def compare_baseline_vs_llm(
 
             if model == baseline_model:
                 base_vals[view] = val
-            elif model not in ("fvs", "rs"):        # LLM bucket
+            elif model not in ("fvs", "rs"):  # LLM bucket
                 llm_vals[view].append(val)
 
     # ------------------- compare per view ------------------------------
@@ -306,28 +313,46 @@ def compare_baseline_vs_llm(
         base_val = base_vals[view]
         best_llm = max(llm_vals[view]) if higher_is_better else min(llm_vals[view])
 
-        if sign * best_llm > sign * base_val:          # LLM wins
+        if sign * best_llm > sign * base_val:  # LLM wins
             llm_better.append(view)
-        elif sign * base_val > sign * best_llm:        # baseline wins
+        elif sign * base_val > sign * best_llm:  # baseline wins
             baseline_better.append(view)
         # ties are ignored
 
     return llm_better, baseline_better
 
+
 stats, diffs = analyze_metrics_by_view(
     base_dir="/local/home/hanwliu/tnt/M60/evaluation_splatfacto",
-    model_names=["clip_ViTB32", "clip_ViTL14", "clip_ViTL14_336px",
-                 "blip_ViTB16", "blip_large", "dinov2", "dinov2_large_fullres", "fvs", "rs"],
-    view_numbers=[5,10,15,20,25,30,40,50,60,70,80,90,100,110,120],
+    model_names=[
+        "clip_ViTB32",
+        "clip_ViTL14",
+        "clip_ViTL14_336px",
+        "blip_ViTB16",
+        "blip_large",
+        "dinov2",
+        "dinov2_large_fullres",
+        "fvs",
+        "rs",
+    ],
+    view_numbers=[5, 10, 15, 20, 25, 30, 40, 50, 60, 70, 80, 90, 100, 110, 120],
     metric="psnr",
     return_diffs=True,
 )
 
 stats, diffs = analyze_metrics_by_view(
     base_dir="/local/home/hanwliu/tnt/M60/evaluation_splatfacto",
-    model_names=["FVS_clip_ViTB32", "FVS_clip_ViTL14", "FVS_clip_ViTL14_336px", 
-                 "FVS_blip_ViTB16", "FVS_dinov2", "FVS_dinov2_large_fullres", "fvs", "rs"],
-    view_numbers=[5,10,15,20,25,30,40,50,60,70,80,90,100,110,120],
+    model_names=[
+        "FVS_clip_ViTB32",
+        "FVS_clip_ViTL14",
+        "FVS_clip_ViTL14_336px",
+        "FVS_blip_ViTB16",
+        "FVS_dinov2",
+        "FVS_dinov2_large_fullres",
+        "fvs",
+        "rs",
+    ],
+    view_numbers=[5, 10, 15, 20, 25, 30, 40, 50, 60, 70, 80, 90, 100, 110, 120],
     metric="psnr",
     return_diffs=True,
 )
@@ -335,23 +360,32 @@ stats, diffs = analyze_metrics_by_view(
 print("Per-view stats:")
 for v in sorted(stats):
     s = stats[v]
-    print(f"{v:4d}: max={s['max']['value']:.4f} ({s['max']['model']}) "
-          f"min={s['min']['value']:.4f} ({s['min']['model']}) "
-          f"mean={s['mean']:.4f}")
+    print(
+        f"{v:4d}: max={s['max']['value']:.4f} ({s['max']['model']}) "
+        f"min={s['min']['value']:.4f} ({s['min']['model']}) "
+        f"mean={s['mean']:.4f}"
+    )
 
 print("\nSpans (max-min) descending:")
 for v, span, max_m, min_m in diffs:
-    print(f"view {v:4d}: span={span:.4f}   "
-          f"max→{max_m}  min→{min_m}")
+    print(f"view {v:4d}: span={span:.4f}   " f"max→{max_m}  min→{min_m}")
 
 leaderboard = mean_rank_across_views(
     base_dir="/local/home/hanwliu/tnt/M60/evaluation_splatfacto",
-    model_names=["FVS_clip_ViTB32", "FVS_clip_ViTL14", "FVS_clip_ViTL14_336px", 
-                 "FVS_blip_ViTB16", "FVS_dinov2", "FVS_dinov2_large_fullres", "fvs", "rs"],
-    view_numbers=[5,10,15,20,25,30,40,50,60,70,80,90,100,110,120],
-    metric="psnr",               # lower-is-better metric
+    model_names=[
+        "FVS_clip_ViTB32",
+        "FVS_clip_ViTL14",
+        "FVS_clip_ViTL14_336px",
+        "FVS_blip_ViTB16",
+        "FVS_dinov2",
+        "FVS_dinov2_large_fullres",
+        "fvs",
+        "rs",
+    ],
+    view_numbers=[5, 10, 15, 20, 25, 30, 40, 50, 60, 70, 80, 90, 100, 110, 120],
+    metric="psnr",  # lower-is-better metric
     higher_is_better=True,
-    drop_if_missing=False,        # treat missing as worst rank
+    drop_if_missing=False,  # treat missing as worst rank
 )
 
 print("Leaderboard (mean rank across views):")
@@ -361,12 +395,18 @@ for model, mr in leaderboard:
 llm_win, fvs_win = compare_fvs_vs_llm(
     base_dir="/local/home/hanwliu/tnt/M60/evaluation_splatfacto",
     model_names=[
-        "clip_ViTB32", "clip_ViTL14", "clip_ViTL14_336px",
-        "blip_ViTB16", "blip_large", "dinov2", "dinov2_large_fullres",
-        "fvs", "rs"
+        "clip_ViTB32",
+        "clip_ViTL14",
+        "clip_ViTL14_336px",
+        "blip_ViTB16",
+        "blip_large",
+        "dinov2",
+        "dinov2_large_fullres",
+        "fvs",
+        "rs",
     ],
-    view_numbers=[5,10,15,20,25,30,40,50,60,70,80,90,100,110,120],
-    metric="psnr",          # higher-is-better
+    view_numbers=[5, 10, 15, 20, 25, 30, 40, 50, 60, 70, 80, 90, 100, 110, 120],
+    metric="psnr",  # higher-is-better
     higher_is_better=True,
 )
 
@@ -374,20 +414,27 @@ print("LLM beats FVS at views : ", llm_win)
 print("FVS beats all LLMs at : ", fvs_win)
 
 
-
-base_dir   = "/local/home/hanwliu/tnt/M60/evaluation_splatfacto"
-view_nums  = [5,10,15,20,25,30,40,50,60,70,80,90,100,110,120]
-all_models = ["FVS_clip_ViTB32", "FVS_clip_ViTL14", "FVS_clip_ViTL14_336px", 
-                 "FVS_blip_ViTB16", "FVS_dinov2", "FVS_dinov2_large_fullres", "fvs", "rs"]
+base_dir = "/local/home/hanwliu/tnt/M60/evaluation_splatfacto"
+view_nums = [5, 10, 15, 20, 25, 30, 40, 50, 60, 70, 80, 90, 100, 110, 120]
+all_models = [
+    "FVS_clip_ViTB32",
+    "FVS_clip_ViTL14",
+    "FVS_clip_ViTL14_336px",
+    "FVS_blip_ViTB16",
+    "FVS_dinov2",
+    "FVS_dinov2_large_fullres",
+    "fvs",
+    "rs",
+]
 
 # --- LLM vs FVS --------------------------------------------------------
 llm_beats_fvs, fvs_beats_llm = compare_baseline_vs_llm(
-    base_dir       = base_dir,
-    model_names    = all_models,
-    view_numbers   = view_nums,
-    baseline_model = "fvs",
-    metric         = "psnr",          # higher-is-better
-    higher_is_better = True,
+    base_dir=base_dir,
+    model_names=all_models,
+    view_numbers=view_nums,
+    baseline_model="fvs",
+    metric="psnr",  # higher-is-better
+    higher_is_better=True,
 )
 
 print("Views where an LLM beats FVS :", llm_beats_fvs)
@@ -395,18 +442,16 @@ print("Views where FVS beats all LLMs:", fvs_beats_llm)
 
 # --- LLM vs RS ---------------------------------------------------------
 llm_beats_rs, rs_beats_llm = compare_baseline_vs_llm(
-    base_dir       = base_dir,
-    model_names    = all_models,
-    view_numbers   = view_nums,
-    baseline_model = "rs",
-    metric         = "psnr",
-    higher_is_better = True,
+    base_dir=base_dir,
+    model_names=all_models,
+    view_numbers=view_nums,
+    baseline_model="rs",
+    metric="psnr",
+    higher_is_better=True,
 )
 
 print("\nViews where an LLM beats RS  :", llm_beats_rs)
 print("Views where RS beats all LLMs :", rs_beats_llm)
-
-
 
 
 # plot
@@ -422,11 +467,12 @@ import numpy as np
 # Assume generate_json_paths(base_dir, model_name, view_numbers) is defined
 # --------------------------------------------------------------------------
 
+
 def compute_llm_vs_baseline_deltas(
     base_dir: str,
     model_names: List[str],
     view_numbers: List[int],
-    baseline_model: str,                  # 'fvs'  OR  'rs'
+    baseline_model: str,  # 'fvs'  OR  'rs'
     metric: str = "psnr",
     *,
     higher_is_better: bool = True,
@@ -452,7 +498,7 @@ def compute_llm_vs_baseline_deltas(
             if metric not in res:
                 continue
             view = int(fp.split("_")[-1].split(".")[0])
-            val  = res[metric]
+            val = res[metric]
 
             if model == baseline_model:
                 baseline_vals[view] = val
@@ -490,44 +536,51 @@ def plot_deltas(
       • worst-LLM – baseline
     with small ‘highest’ / ‘lowest’ annotations.
     """
-    views  = sorted(deltas)
-    best   = [deltas[v][0] for v in views]
-    worst  = [deltas[v][1] for v in views]
+    views = sorted(deltas)
+    best = [deltas[v][0] for v in views]
+    worst = [deltas[v][1] for v in views]
 
     fig, ax = plt.subplots(figsize=(10, 5))
-    ax.plot(views, best,  "-o", label=f"Best LLM − {baseline_label}",
-            color=colour_best)
-    ax.plot(views, worst, "-o", label=f"Worst LLM − {baseline_label}",
-            color=colour_worst)
+    ax.plot(views, best, "-o", label=f"Best LLM − {baseline_label}", color=colour_best)
+    ax.plot(
+        views, worst, "-o", label=f"Worst LLM − {baseline_label}", color=colour_worst
+    )
 
     # ── add tiny text labels next to extrema ────────────────────────────
     def tag(point_x, point_y, txt, colour, v_shift):
-        ax.text(point_x, point_y + v_shift, txt,
-                fontsize=7, color=colour, ha="center", va="bottom")
+        ax.text(
+            point_x,
+            point_y + v_shift,
+            txt,
+            fontsize=7,
+            color=colour,
+            ha="center",
+            va="bottom",
+        )
 
     # best-curve annotations
     idx_max_best = int(np.argmax(best))
     idx_min_best = int(np.argmin(best))
     tag(views[idx_max_best], best[idx_max_best], "highest", colour_best, 0.10)
-    tag(views[idx_min_best], best[idx_min_best], "lowest",  colour_best, -0.15)
+    tag(views[idx_min_best], best[idx_min_best], "lowest", colour_best, -0.15)
 
     # worst-curve annotations
     idx_max_worst = int(np.argmax(worst))
     idx_min_worst = int(np.argmin(worst))
     tag(views[idx_max_worst], worst[idx_max_worst], "highest", colour_worst, 0.10)
-    tag(views[idx_min_worst], worst[idx_min_worst], "lowest",  colour_worst, -0.15)
+    tag(views[idx_min_worst], worst[idx_min_worst], "lowest", colour_worst, -0.15)
 
     # ── cosmetics ───────────────────────────────────────────────────────
     ax.axhline(0, color="k", lw=0.8)
     ax.set_xlabel("Training views")
-    ax.set_ylabel(f"Δ {metric} (dB)" if metric.lower() == "psnr"
-                  else f"Δ {metric}")
+    ax.set_ylabel(f"Δ {metric} (dB)" if metric.lower() == "psnr" else f"Δ {metric}")
     ax.set_title(f"LLM vs {baseline_label}: {metric}")
     ax.set_xticks(views)
     ax.grid(True, linestyle="--", alpha=0.4)
     ax.legend()
     plt.tight_layout()
     plt.show()
+
 
 def compute_rs_minus_fvs(
     base_dir: str,
@@ -562,6 +615,7 @@ def compute_rs_minus_fvs(
     # "positive ⇒ RS better", leave the formula as is – sign flips naturally.
     return diffs
 
+
 def plot_rs_vs_fvs(
     diffs: Dict[int, float],
     *,
@@ -572,19 +626,25 @@ def plot_rs_vs_fvs(
     deltas = [diffs[v] for v in views]
 
     fig, ax = plt.subplots(figsize=(10, 5))
-    ax.plot(views, deltas, "-o", color=colour,
-            label="FVS − RS")
+    ax.plot(views, deltas, "-o", color=colour, label="FVS − RS")
 
     # --- annotate highest & lowest -------------------------------------
     idx_high = int(np.argmax(deltas))
-    idx_low  = int(np.argmin(deltas))
+    idx_low = int(np.argmin(deltas))
 
     def tag(idx, text, v_shift):
-        ax.text(views[idx], deltas[idx] + v_shift, text,
-                fontsize=7, color=colour, ha="center", va="bottom")
+        ax.text(
+            views[idx],
+            deltas[idx] + v_shift,
+            text,
+            fontsize=7,
+            color=colour,
+            ha="center",
+            va="bottom",
+        )
 
-    tag(idx_high, "highest",  0.10)
-    tag(idx_low,  "lowest",  -0.15)
+    tag(idx_high, "highest", 0.10)
+    tag(idx_low, "lowest", -0.15)
 
     # --- cosmetics ------------------------------------------------------
     ax.axhline(0, color="k", lw=0.8)
@@ -596,17 +656,29 @@ def plot_rs_vs_fvs(
     ax.legend()
     plt.tight_layout()
     plt.show()
+
+
 # ----------------------------------------------------------------------
 # Example usage
 # ----------------------------------------------------------------------
-base_dir   = "/local/home/hanwliu/tnt/M60/evaluation_splatfacto"
-view_nums  = [5,10,15,20,25,30,40,50,60,70,80,90,100,110,120]
-all_models = ["FVS_clip_ViTB32", "FVS_clip_ViTL14", "FVS_clip_ViTL14_336px", 
-                 "FVS_blip_ViTB16", "FVS_dinov2", "FVS_dinov2_large_fullres", "fvs", "rs"]
+base_dir = "/local/home/hanwliu/tnt/M60/evaluation_splatfacto"
+view_nums = [5, 10, 15, 20, 25, 30, 40, 50, 60, 70, 80, 90, 100, 110, 120]
+all_models = [
+    "FVS_clip_ViTB32",
+    "FVS_clip_ViTL14",
+    "FVS_clip_ViTL14_336px",
+    "FVS_blip_ViTB16",
+    "FVS_dinov2",
+    "FVS_dinov2_large_fullres",
+    "fvs",
+    "rs",
+]
 
 # 1)  FVS baseline
 deltas_fvs = compute_llm_vs_baseline_deltas(
-    base_dir, all_models, view_nums,
+    base_dir,
+    all_models,
+    view_nums,
     baseline_model="fvs",
     metric="psnr",
     higher_is_better=True,
@@ -615,22 +687,24 @@ plot_deltas(deltas_fvs, baseline_label="FVS", metric="PSNR")
 
 # 2)  RS baseline
 deltas_rs = compute_llm_vs_baseline_deltas(
-    base_dir, all_models, view_nums,
+    base_dir,
+    all_models,
+    view_nums,
     baseline_model="rs",
     metric="psnr",
     higher_is_better=True,
 )
-plot_deltas(deltas_rs, baseline_label="RS",  metric="PSNR")
+plot_deltas(deltas_rs, baseline_label="RS", metric="PSNR")
 
 
-base_dir  = "/local/home/hanwliu/tnt/M60/evaluation_splatfacto"
-view_nums = [5,10,15,20,25,30,40,50,60,70,80,90,100,110,120]
+base_dir = "/local/home/hanwliu/tnt/M60/evaluation_splatfacto"
+view_nums = [5, 10, 15, 20, 25, 30, 40, 50, 60, 70, 80, 90, 100, 110, 120]
 
 diffs = compute_rs_minus_fvs(
     base_dir,
     view_nums,
     metric="psnr",
-    higher_is_better=True,   # PSNR – higher means better quality
+    higher_is_better=True,  # PSNR – higher means better quality
 )
 
 plot_rs_vs_fvs(diffs, metric="PSNR")
