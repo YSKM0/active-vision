@@ -28,3 +28,4 @@ venv/
 
 # custom
 my_script/
+.pre-commit-config.yaml
