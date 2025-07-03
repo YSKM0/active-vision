@@ -1,0 +1,30 @@
+# IDE and Editor settings
+.vscode/
+.vs/
+
+# Build and distribution folders
+build/
+dist/
+*.egg-info/
+
+# Byte-compiled and cache files
+__pycache__/
+*.py[cod]
+*.pyd
+
+# Logs
+*.log
+
+# Jupyter Notebooks (optional ? remove if you want to track them)
+*.ipynb
+
+# Virtual environments
+venv/
+.env
+
+# macOS system files
+.DS_Store
+._.DS_Store
+
+# custom
+my_script/
