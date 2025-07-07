@@ -1,42 +1,6 @@
 # This file is for changing the path name of transforms.json file, so that nerfstudio can recongnize the train and test set
 # This is applied on the test set's transforms.json
 
-
-# import json
-# import re
-
-# # Customize your split ranges here
-# train_ranges = [(1,2000)]#[(1, 27), (46, 83)]
-# test_ranges = [(2001, 2221)]
-
-# def get_split(frame_id):
-#     for start, end in train_ranges:
-#         if start <= frame_id <= end:
-#             return "train"
-#     for start, end in test_ranges:
-#         if start <= frame_id <= end:
-#             return "test"
-#     return "unknown"  # Catch if it's not in any range
-
-# # Load original transforms.json
-# with open("/local/home/hanwliu/lab_record/nerfstudio/transforms.json", "r") as f:
-#     data = json.load(f)
-
-# # Add "split" to each frame based on its filename number
-# for frame in data["frames"]:
-#     match = re.search(r"frame_(\d+)", frame["file_path"])
-#     if match:
-#         frame_id = int(match.group(1))
-#         frame["split"] = get_split(frame_id)
-#     else:
-#         frame["split"] = "unknown"
-
-# # Save the updated file
-# with open("/local/home/hanwliu/lab_record/dataset/test2/transforms.json", "w") as f:
-#     json.dump(data, f, indent=4)
-
-# print("? transforms_with_splits.json written with split info.")
-
 import json
 import os
 import re

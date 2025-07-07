@@ -1,13 +1,40 @@
 import json, os
 from statistics import mean
 from collections import defaultdict
-import matplotlib.cm as cm
 import matplotlib.pyplot as plt
 import numpy as np
-from collections import defaultdict
 from typing import List, Optional, Tuple, Dict
+import pandas as pd
+
+# ==================== CONFIGURATION ============================
+BASE_DIR = "/local/home/hanwliu/table/evaluation_splatfacto"
+VIEW_NUMS = [5, 10, 15, 20, 25, 30, 40, 50, 60, 70, 80, 90, 100, 110, 120]
+ALL_MODELS = [
+    "clip_ViT-B32",
+    "clip_ViTL14",
+    "clip_ViTL14_336px",
+    "blip_ViTB16",
+    "dinov2",
+    "dinov2_large_fullres",
+    "fvs",
+    "rs",
+]
+VANILLA_MODELS = [
+    "clip_ViT-B32",
+    "clip_ViTL14",
+    "clip_ViTL14_336px",
+    "blip_ViTB16",
+    "dinov2",
+    "dinov2_large_fullres",
+    "fvs",
+    "rs",
+]
+METRIC = "psnr"
+HIGHER_IS_BETTER = True
+RETURN_TYPE = "rank"
 
 
+# ------------------------ Functions -----------------------
 def generate_json_paths(base_dir: str, model_name: str, view_numbers: List[int]):
     prefix = model_name if model_name in ["fvs", "rs"] else "vlm"
     return [
@@ -23,24 +50,7 @@ def analyze_metrics_by_view(
     metric: str = "psnr",
     *,
     return_diffs: bool = False,
-) -> Tuple[
-    Dict[int, Dict[str, Dict[str, float]]],  # stats with model tags
-    Optional[List[Tuple[int, float, str, str]]],
-]:
-    """
-    Compute per-view max / min / mean of *metric* across models
-    and record which model attains the extremes.
-
-    Returns
-    -------
-    stats : {view: {'max': {'value': v, 'model': m},
-                    'min': {'value': v, 'model': m},
-                    'mean': val}}
-    diffs : None  OR  [(view, span, max_model, min_model), ...]      # sorted ↓
-    """
-
-    # -----------  gather values ------------------------------------------------
-    # view → list[(value, model)]
+):
     values_per_view: Dict[int, List[Tuple[float, str]]] = defaultdict(list)
 
     for model in model_names:
@@ -54,7 +64,6 @@ def analyze_metrics_by_view(
             view = int(fp.split("_")[-1].split(".")[0])
             values_per_view[view].append((results[metric], model))
 
-    # -----------  compute statistics ------------------------------------------
     stats: Dict[int, Dict[str, Dict[str, float]]] = {}
     for view, vm_list in values_per_view.items():
         if not vm_list:
@@ -69,7 +78,6 @@ def analyze_metrics_by_view(
             "mean": mean(vals),
         }
 
-    # -----------  optionally return spans -------------------------------------
     if return_diffs:
         diffs = [
             (
@@ -94,34 +102,7 @@ def mean_rank_across_views(
     *,
     higher_is_better: bool = True,
     drop_if_missing: bool = False,
-) -> List[Tuple[str, float]]:
-    """
-    Compute the mean (average) rank of each model over all specified training
-    views and return a list sorted from best (lowest mean rank) to worst.
-
-    Parameters
-    ----------
-    base_dir : str
-        Root directory that contains the experiment sub-folders.
-    model_names : List[str]
-        Sub-folder names (= model identifiers) to include.
-    view_numbers : List[int]
-        Training-view counts to consider.
-    metric : str, default 'psnr'
-        Which metric key to read from each JSON’s 'results' section.
-    higher_is_better : bool, default True
-        True  → higher metric values rank better (e.g. PSNR, SSIM)
-        False → lower values rank better (e.g. LPIPS, loss)
-    drop_if_missing : bool, default False
-        If True, *exclude* views where a model lacks data from that model’s
-        mean; otherwise missing views are treated as worst-rank for that view.
-
-    Returns
-    -------
-    List[(model, mean_rank)]  sorted ascending  (best first, like a leaderboard)
-    """
-
-    # view → list[(model, value)]
+):
     values_by_view: Dict[int, List[Tuple[str, float]]] = defaultdict(list)
 
     for model in model_names:
@@ -135,26 +116,17 @@ def mean_rank_across_views(
             view = int(fp.split("_")[-1].split(".")[0])
             values_by_view[view].append((model, res[metric]))
 
-    # model → cumulative rank + count
     rank_accum: Dict[str, float] = defaultdict(float)
     rank_counts: Dict[str, int] = defaultdict(int)
 
     for view, mv_list in values_by_view.items():
         if not mv_list:
             continue
-
-        # sort within this view
-        mv_list.sort(
-            key=lambda x: x[1],
-            reverse=higher_is_better,  # descending if higher is better
-        )
-
-        # assign ranks starting from 1
+        mv_list.sort(key=lambda x: x[1], reverse=higher_is_better)
         for rank, (model, _) in enumerate(mv_list, start=1):
             rank_accum[model] += rank
             rank_counts[model] += 1
 
-        # handle models missing for this view
         if not drop_if_missing:
             worst_rank = len(mv_list) + 1
             missing = set(model_names) - {m for m, _ in mv_list}
@@ -162,17 +134,15 @@ def mean_rank_across_views(
                 rank_accum[model] += worst_rank
                 rank_counts[model] += 1
 
-    # finally compute mean rank
     mean_ranks = [
         (model, rank_accum[model] / rank_counts[model])
         for model in rank_accum
         if rank_counts[model] > 0
     ]
 
-    # NEW: ensure every model in `model_names` is represented
     for m in model_names:
         if m not in {mr[0] for mr in mean_ranks}:
-            mean_ranks.append((m, float("inf")))  # or a large number / np.nan
+            mean_ranks.append((m, float("inf")))
 
     mean_ranks.sort(key=lambda x: x[1])
     return mean_ranks
@@ -185,32 +155,7 @@ def compare_fvs_vs_llm(
     metric: str = "psnr",
     *,
     higher_is_better: bool = True,
-) -> Tuple[List[int], List[int]]:
-    """
-    Return two lists of training-view counts:
-      1. views where *any* non-FVS/RS model outperforms FVS
-      2. views where FVS beats *all* non-FVS/RS models
-
-    Parameters
-    ----------
-    base_dir : str
-        Root directory of experiments.
-    model_names : List[str]
-        All model folders to consider (must include 'fvs').
-    view_numbers : List[int]
-        Training-view counts to examine.
-    metric : str, default 'psnr'
-        Metric key inside each JSON’s 'results'.
-    higher_is_better : bool, default True
-        Use False when lower metric values are better (e.g. LPIPS).
-
-    Returns
-    -------
-    (llm_better, fvs_better)
-        llm_better : List[int]  – views where at least one LLM > FVS
-        fvs_better : List[int]  – views where FVS > every LLM
-    """
-    # ---------------- collect metric values -----------------------------
+):
     fvs_values: Dict[int, float] = {}
     llm_values: Dict[int, List[float]] = defaultdict(list)
 
@@ -222,32 +167,24 @@ def compare_fvs_vs_llm(
                 res = json.load(f).get("results", {})
             if metric not in res:
                 continue
-
             view = int(fp.split("_")[-1].split(".")[0])
             if model == "fvs":
                 fvs_values[view] = res[metric]
-            elif model not in ("rs",):  # LLM bucket
+            elif model not in ("rs",):
                 llm_values[view].append(res[metric])
 
-    # ---------------- compare per view ----------------------------------
-    llm_better: List[int] = []
-    fvs_better: List[int] = []
-
+    llm_better, fvs_better = [], []
     sign = 1 if higher_is_better else -1
 
     for view in view_numbers:
         if view not in fvs_values or view not in llm_values:
-            # skip if data incomplete for the comparison
             continue
-
         fvs_val = fvs_values[view]
         best_llm = max(llm_values[view]) if higher_is_better else min(llm_values[view])
-
         if sign * best_llm > sign * fvs_val:
             llm_better.append(view)
         elif sign * fvs_val > sign * best_llm:
             fvs_better.append(view)
-        # ties are ignored
 
     return llm_better, fvs_better
 
@@ -256,29 +193,13 @@ def compare_baseline_vs_llm(
     base_dir: str,
     model_names: List[str],
     view_numbers: List[int],
-    baseline_model: str,  # 'fvs'  OR  'rs'
+    baseline_model: str,
     metric: str = "psnr",
     *,
     higher_is_better: bool = True,
-) -> Tuple[List[int], List[int]]:
-    """
-    Identify training-view counts where:
-
-      • at least one "LLM" model (any model **not** in {'fvs','rs'})
-        outperforms the baseline model;
-      • the baseline beats **all** LLM models.
-
-    Returns
-    -------
-    (llm_better, baseline_better)
-        llm_better       : views where best-LLM > baseline
-        baseline_better  : views where baseline > every LLM
-    """
-
+):
     if baseline_model not in ("fvs", "rs"):
         raise ValueError("baseline_model must be 'fvs' or 'rs'")
-
-    # ------------------- gather values ---------------------------------
     base_vals: Dict[int, float] = {}
     llm_vals: Dict[int, List[float]] = defaultdict(list)
 
@@ -290,205 +211,44 @@ def compare_baseline_vs_llm(
                 res = json.load(f).get("results", {})
             if metric not in res:
                 continue
-
             view = int(fp.split("_")[-1].split(".")[0])
             val = res[metric]
-
             if model == baseline_model:
                 base_vals[view] = val
-            elif model not in ("fvs", "rs"):  # LLM bucket
+            elif model not in ("fvs", "rs"):
                 llm_vals[view].append(val)
 
-    # ------------------- compare per view ------------------------------
     sign = 1 if higher_is_better else -1
-
-    llm_better: List[int] = []
-    baseline_better: List[int] = []
+    llm_better, baseline_better = [], []
 
     for view in view_numbers:
         if view not in base_vals or view not in llm_vals or not llm_vals[view]:
-            # skip if baseline or LLM data missing for this view
             continue
-
         base_val = base_vals[view]
         best_llm = max(llm_vals[view]) if higher_is_better else min(llm_vals[view])
-
-        if sign * best_llm > sign * base_val:  # LLM wins
+        if sign * best_llm > sign * base_val:
             llm_better.append(view)
-        elif sign * base_val > sign * best_llm:  # baseline wins
+        elif sign * base_val > sign * best_llm:
             baseline_better.append(view)
-        # ties are ignored
 
     return llm_better, baseline_better
-
-
-stats, diffs = analyze_metrics_by_view(
-    base_dir="/local/home/hanwliu/tnt/M60/evaluation_splatfacto",
-    model_names=[
-        "clip_ViTB32",
-        "clip_ViTL14",
-        "clip_ViTL14_336px",
-        "blip_ViTB16",
-        "blip_large",
-        "dinov2",
-        "dinov2_large_fullres",
-        "fvs",
-        "rs",
-    ],
-    view_numbers=[5, 10, 15, 20, 25, 30, 40, 50, 60, 70, 80, 90, 100, 110, 120],
-    metric="psnr",
-    return_diffs=True,
-)
-
-stats, diffs = analyze_metrics_by_view(
-    base_dir="/local/home/hanwliu/tnt/M60/evaluation_splatfacto",
-    model_names=[
-        "FVS_clip_ViTB32",
-        "FVS_clip_ViTL14",
-        "FVS_clip_ViTL14_336px",
-        "FVS_blip_ViTB16",
-        "FVS_dinov2",
-        "FVS_dinov2_large_fullres",
-        "fvs",
-        "rs",
-    ],
-    view_numbers=[5, 10, 15, 20, 25, 30, 40, 50, 60, 70, 80, 90, 100, 110, 120],
-    metric="psnr",
-    return_diffs=True,
-)
-
-print("Per-view stats:")
-for v in sorted(stats):
-    s = stats[v]
-    print(
-        f"{v:4d}: max={s['max']['value']:.4f} ({s['max']['model']}) "
-        f"min={s['min']['value']:.4f} ({s['min']['model']}) "
-        f"mean={s['mean']:.4f}"
-    )
-
-print("\nSpans (max-min) descending:")
-for v, span, max_m, min_m in diffs:
-    print(f"view {v:4d}: span={span:.4f}   " f"max→{max_m}  min→{min_m}")
-
-leaderboard = mean_rank_across_views(
-    base_dir="/local/home/hanwliu/tnt/M60/evaluation_splatfacto",
-    model_names=[
-        "FVS_clip_ViTB32",
-        "FVS_clip_ViTL14",
-        "FVS_clip_ViTL14_336px",
-        "FVS_blip_ViTB16",
-        "FVS_dinov2",
-        "FVS_dinov2_large_fullres",
-        "fvs",
-        "rs",
-    ],
-    view_numbers=[5, 10, 15, 20, 25, 30, 40, 50, 60, 70, 80, 90, 100, 110, 120],
-    metric="psnr",  # lower-is-better metric
-    higher_is_better=True,
-    drop_if_missing=False,  # treat missing as worst rank
-)
-
-print("Leaderboard (mean rank across views):")
-for model, mr in leaderboard:
-    print(f"{model:15s}  mean_rank = {mr:.2f}")
-
-llm_win, fvs_win = compare_fvs_vs_llm(
-    base_dir="/local/home/hanwliu/tnt/M60/evaluation_splatfacto",
-    model_names=[
-        "clip_ViTB32",
-        "clip_ViTL14",
-        "clip_ViTL14_336px",
-        "blip_ViTB16",
-        "blip_large",
-        "dinov2",
-        "dinov2_large_fullres",
-        "fvs",
-        "rs",
-    ],
-    view_numbers=[5, 10, 15, 20, 25, 30, 40, 50, 60, 70, 80, 90, 100, 110, 120],
-    metric="psnr",  # higher-is-better
-    higher_is_better=True,
-)
-
-print("LLM beats FVS at views : ", llm_win)
-print("FVS beats all LLMs at : ", fvs_win)
-
-
-base_dir = "/local/home/hanwliu/tnt/M60/evaluation_splatfacto"
-view_nums = [5, 10, 15, 20, 25, 30, 40, 50, 60, 70, 80, 90, 100, 110, 120]
-all_models = [
-    "FVS_clip_ViTB32",
-    "FVS_clip_ViTL14",
-    "FVS_clip_ViTL14_336px",
-    "FVS_blip_ViTB16",
-    "FVS_dinov2",
-    "FVS_dinov2_large_fullres",
-    "fvs",
-    "rs",
-]
-
-# --- LLM vs FVS --------------------------------------------------------
-llm_beats_fvs, fvs_beats_llm = compare_baseline_vs_llm(
-    base_dir=base_dir,
-    model_names=all_models,
-    view_numbers=view_nums,
-    baseline_model="fvs",
-    metric="psnr",  # higher-is-better
-    higher_is_better=True,
-)
-
-print("Views where an LLM beats FVS :", llm_beats_fvs)
-print("Views where FVS beats all LLMs:", fvs_beats_llm)
-
-# --- LLM vs RS ---------------------------------------------------------
-llm_beats_rs, rs_beats_llm = compare_baseline_vs_llm(
-    base_dir=base_dir,
-    model_names=all_models,
-    view_numbers=view_nums,
-    baseline_model="rs",
-    metric="psnr",
-    higher_is_better=True,
-)
-
-print("\nViews where an LLM beats RS  :", llm_beats_rs)
-print("Views where RS beats all LLMs :", rs_beats_llm)
-
-
-# plot
-
-import os, json
-from typing import List, Dict, Tuple, Optional
-from collections import defaultdict
-
-import matplotlib.pyplot as plt
-import numpy as np
-
-# --------------------------------------------------------------------------
-# Assume generate_json_paths(base_dir, model_name, view_numbers) is defined
-# --------------------------------------------------------------------------
 
 
 def compute_llm_vs_baseline_deltas(
     base_dir: str,
     model_names: List[str],
     view_numbers: List[int],
-    baseline_model: str,  # 'fvs'  OR  'rs'
+    baseline_model: str,
     metric: str = "psnr",
     *,
     higher_is_better: bool = True,
-) -> Dict[int, Tuple[float, float]]:
-    """
-    Return {view: (best_llm - baseline, worst_llm - baseline)}.
-    Views with incomplete data are omitted.
-    """
-
+):
     if baseline_model not in ("fvs", "rs"):
         raise ValueError("baseline_model must be 'fvs' or 'rs'.")
 
     baseline_vals: Dict[int, float] = {}
     llm_vals: Dict[int, List[float]] = defaultdict(list)
 
-    # ---------- gather ---------------------------------------------------
     for model in model_names:
         for fp in generate_json_paths(base_dir, model, view_numbers):
             if not os.path.exists(fp):
@@ -499,24 +259,20 @@ def compute_llm_vs_baseline_deltas(
                 continue
             view = int(fp.split("_")[-1].split(".")[0])
             val = res[metric]
-
             if model == baseline_model:
                 baseline_vals[view] = val
             elif model not in ("fvs", "rs"):
                 llm_vals[view].append(val)
 
-    # ---------- compute deltas ------------------------------------------
     sign = 1 if higher_is_better else -1
     deltas: Dict[int, Tuple[float, float]] = {}
 
     for v in view_numbers:
         if v not in baseline_vals or v not in llm_vals or not llm_vals[v]:
             continue
-
         base = baseline_vals[v]
         best_llm = max(llm_vals[v]) if higher_is_better else min(llm_vals[v])
         worst_llm = min(llm_vals[v]) if higher_is_better else max(llm_vals[v])
-
         deltas[v] = (best_llm - base, worst_llm - base)
 
     return deltas
@@ -530,12 +286,6 @@ def plot_deltas(
     colour_best: str = "tab:blue",
     colour_worst: str = "tab:red",
 ):
-    """
-    Two curves:
-      • best-LLM – baseline
-      • worst-LLM – baseline
-    with small ‘highest’ / ‘lowest’ annotations.
-    """
     views = sorted(deltas)
     best = [deltas[v][0] for v in views]
     worst = [deltas[v][1] for v in views]
@@ -546,31 +296,22 @@ def plot_deltas(
         views, worst, "-o", label=f"Worst LLM − {baseline_label}", color=colour_worst
     )
 
-    # ── add tiny text labels next to extrema ────────────────────────────
-    def tag(point_x, point_y, txt, colour, v_shift):
+    def tag(idx, curve, label, color, offset):
         ax.text(
-            point_x,
-            point_y + v_shift,
-            txt,
+            views[idx],
+            curve[idx] + offset,
+            label,
             fontsize=7,
-            color=colour,
+            color=color,
             ha="center",
             va="bottom",
         )
 
-    # best-curve annotations
-    idx_max_best = int(np.argmax(best))
-    idx_min_best = int(np.argmin(best))
-    tag(views[idx_max_best], best[idx_max_best], "highest", colour_best, 0.10)
-    tag(views[idx_min_best], best[idx_min_best], "lowest", colour_best, -0.15)
+    tag(np.argmax(best), best, "highest", colour_best, 0.10)
+    tag(np.argmin(best), best, "lowest", colour_best, -0.15)
+    tag(np.argmax(worst), worst, "highest", colour_worst, 0.10)
+    tag(np.argmin(worst), worst, "lowest", colour_worst, -0.15)
 
-    # worst-curve annotations
-    idx_max_worst = int(np.argmax(worst))
-    idx_min_worst = int(np.argmin(worst))
-    tag(views[idx_max_worst], worst[idx_max_worst], "highest", colour_worst, 0.10)
-    tag(views[idx_min_worst], worst[idx_min_worst], "lowest", colour_worst, -0.15)
-
-    # ── cosmetics ───────────────────────────────────────────────────────
     ax.axhline(0, color="k", lw=0.8)
     ax.set_xlabel("Training views")
     ax.set_ylabel(f"Δ {metric} (dB)" if metric.lower() == "psnr" else f"Δ {metric}")
@@ -588,13 +329,8 @@ def compute_rs_minus_fvs(
     *,
     metric: str = "psnr",
     higher_is_better: bool = True,
-) -> Dict[int, float]:
-    """
-    Return {view :  RS_metric − FVS_metric}.
-    Views missing either metric are skipped.
-    """
+):
     vals: Dict[str, Dict[int, float]] = {"fvs": {}, "rs": {}}
-
     for model in ("fvs", "rs"):
         for fp in generate_json_paths(base_dir, model, view_numbers):
             if not os.path.exists(fp):
@@ -606,21 +342,16 @@ def compute_rs_minus_fvs(
             view = int(fp.split("_")[-1].split(".")[0])
             vals[model][view] = res[metric]
 
-    diffs = {}
-    for v in view_numbers:
-        if v in vals["fvs"] and v in vals["rs"]:
-            diffs[v] = vals["fvs"][v] - vals["rs"][v]
-
-    # If metric is "lower-is-better" (e.g. LPIPS) but you still want
-    # "positive ⇒ RS better", leave the formula as is – sign flips naturally.
+    diffs = {
+        v: vals["fvs"][v] - vals["rs"][v]
+        for v in view_numbers
+        if v in vals["fvs"] and v in vals["rs"]
+    }
     return diffs
 
 
 def plot_rs_vs_fvs(
-    diffs: Dict[int, float],
-    *,
-    metric: str = "PSNR",
-    colour: str = "tab:green",
+    diffs: Dict[int, float], *, metric: str = "PSNR", colour: str = "tab:green"
 ):
     views = sorted(diffs)
     deltas = [diffs[v] for v in views]
@@ -628,29 +359,24 @@ def plot_rs_vs_fvs(
     fig, ax = plt.subplots(figsize=(10, 5))
     ax.plot(views, deltas, "-o", color=colour, label="FVS − RS")
 
-    # --- annotate highest & lowest -------------------------------------
-    idx_high = int(np.argmax(deltas))
-    idx_low = int(np.argmin(deltas))
-
-    def tag(idx, text, v_shift):
+    def tag(idx, label, offset):
         ax.text(
             views[idx],
-            deltas[idx] + v_shift,
-            text,
+            deltas[idx] + offset,
+            label,
             fontsize=7,
             color=colour,
             ha="center",
             va="bottom",
         )
 
-    tag(idx_high, "highest", 0.10)
-    tag(idx_low, "lowest", -0.15)
+    tag(np.argmax(deltas), "highest", 0.10)
+    tag(np.argmin(deltas), "lowest", -0.15)
 
-    # --- cosmetics ------------------------------------------------------
     ax.axhline(0, color="k", lw=0.8)
     ax.set_xlabel("Training views")
-    ax.set_ylabel(f"Δ {metric} (RS − FVS)")
-    ax.set_title(f"RS vs FVS: {metric} difference")
+    ax.set_ylabel(f"Δ {metric} (FVS − RS)")
+    ax.set_title(f"FVS vs RS: {metric} difference")
     ax.set_xticks(views)
     ax.grid(True, linestyle="--", alpha=0.4)
     ax.legend()
@@ -658,53 +384,297 @@ def plot_rs_vs_fvs(
     plt.show()
 
 
-# ----------------------------------------------------------------------
-# Example usage
-# ----------------------------------------------------------------------
-base_dir = "/local/home/hanwliu/tnt/M60/evaluation_splatfacto"
-view_nums = [5, 10, 15, 20, 25, 30, 40, 50, 60, 70, 80, 90, 100, 110, 120]
-all_models = [
-    "FVS_clip_ViTB32",
-    "FVS_clip_ViTL14",
-    "FVS_clip_ViTL14_336px",
-    "FVS_blip_ViTB16",
-    "FVS_dinov2",
-    "FVS_dinov2_large_fullres",
-    "fvs",
-    "rs",
-]
+def compare_fvs_vs_rs(
+    base_dir: str,
+    view_numbers: List[int],
+    metric: str = "psnr",
+    *,
+    higher_is_better: bool = True,
+) -> Tuple[List[int], List[int]]:
+    """
+    Compare FVS and RS models per view.
 
-# 1)  FVS baseline
-deltas_fvs = compute_llm_vs_baseline_deltas(
-    base_dir,
-    all_models,
-    view_nums,
-    baseline_model="fvs",
-    metric="psnr",
-    higher_is_better=True,
-)
-plot_deltas(deltas_fvs, baseline_label="FVS", metric="PSNR")
+    Returns:
+        - List of views where FVS > RS
+        - List of views where RS > FVS
+    """
+    fvs_vals: Dict[int, float] = {}
+    rs_vals: Dict[int, float] = {}
 
-# 2)  RS baseline
-deltas_rs = compute_llm_vs_baseline_deltas(
-    base_dir,
-    all_models,
-    view_nums,
-    baseline_model="rs",
-    metric="psnr",
-    higher_is_better=True,
-)
-plot_deltas(deltas_rs, baseline_label="RS", metric="PSNR")
+    for model in ("fvs", "rs"):
+        for fp in generate_json_paths(base_dir, model, view_numbers):
+            if not os.path.exists(fp):
+                continue
+            with open(fp, "r") as f:
+                res = json.load(f).get("results", {})
+            if metric not in res:
+                continue
+            view = int(fp.split("_")[-1].split(".")[0])
+            if model == "fvs":
+                fvs_vals[view] = res[metric]
+            else:
+                rs_vals[view] = res[metric]
+
+    fvs_beats, rs_beats = [], []
+    sign = 1 if higher_is_better else -1
+
+    for view in view_numbers:
+        if view not in fvs_vals or view not in rs_vals:
+            continue
+        fvs_score, rs_score = fvs_vals[view], rs_vals[view]
+        if sign * fvs_score > sign * rs_score:
+            fvs_beats.append(view)
+        elif sign * rs_score > sign * fvs_score:
+            rs_beats.append(view)
+
+    return fvs_beats, rs_beats
 
 
-base_dir = "/local/home/hanwliu/tnt/M60/evaluation_splatfacto"
-view_nums = [5, 10, 15, 20, 25, 30, 40, 50, 60, 70, 80, 90, 100, 110, 120]
+def compute_rank_matrix(
+    base_dir: str,
+    model_names: List[str],
+    view_numbers: List[int],
+    metric: str = "psnr",
+    *,
+    higher_is_better: bool = True,
+    drop_if_missing: bool = False,
+) -> Dict[str, Dict[int, Optional[int]]]:
+    """
+    Return a nested dict: rank_matrix[model][view] -> rank (1 = best).
 
-diffs = compute_rs_minus_fvs(
-    base_dir,
-    view_nums,
-    metric="psnr",
-    higher_is_better=True,  # PSNR – higher means better quality
-)
+    If `drop_if_missing` is False (default), any model that lacks a score for
+    a given view is assigned `worst_rank = (#models with scores) + 1`.
+    If `drop_if_missing` is True, missing entries are set to None.
 
-plot_rs_vs_fvs(diffs, metric="PSNR")
+    Example return structure (for 3 models and 2 views):
+        {
+          "dinov2": {5: 1, 10: 2},
+          "fvs":    {5: 3, 10: 1},
+          "rs":     {5: 2, 10: None},
+        }
+    """
+    # Collect scores per view
+    scores_by_view: Dict[int, List[Tuple[str, float]]] = defaultdict(list)
+    for model in model_names:
+        for fp in generate_json_paths(base_dir, model, view_numbers):
+            if not os.path.exists(fp):
+                continue
+            with open(fp, "r") as f:
+                res = json.load(f).get("results", {})
+            if metric not in res:
+                continue
+            view = int(fp.split("_")[-1].split(".")[0])
+            scores_by_view[view].append((model, res[metric]))
+
+    # Initialise rank matrix with None
+    rank_matrix: Dict[str, Dict[int, Optional[int]]] = {
+        m: {v: None for v in view_numbers} for m in model_names
+    }
+
+    # Compute ranks per view
+    for view, mv_list in scores_by_view.items():
+        if not mv_list:
+            continue
+        mv_list.sort(key=lambda x: x[1], reverse=higher_is_better)
+        for rank, (model, _) in enumerate(mv_list, start=1):
+            rank_matrix[model][view] = rank
+
+        # handle missing models
+        if not drop_if_missing:
+            worst_rank = len(mv_list) + 1
+            for model in set(model_names) - {m for m, _ in mv_list}:
+                rank_matrix[model][view] = worst_rank
+
+    return rank_matrix
+
+
+def rank_matrix_to_latex(
+    rank_matrix: Dict[str, Dict[int, Optional[int]]],
+    view_numbers: List[int],
+    *,
+    caption: str = "Per-view rank of each model (1 = best).",
+    label: str = "tab:rank_matrix",
+) -> str:
+    """
+    Convert the rank matrix to a LaTeX tabular surrounded by booktabs lines.
+    """
+    df = pd.DataFrame(rank_matrix).T[view_numbers]
+    df.index.name = "Model"
+    df = df.fillna("-")
+
+    latex = df.to_latex(
+        index=True,
+        na_rep="-",
+        column_format="l" + "c" * len(view_numbers),  # left, then centered cols
+        escape=False,
+        caption=caption,
+        label=label,
+        multicolumn=True,
+        multicolumn_format="c",
+        bold_rows=False,
+    )
+    return latex
+
+
+def compute_metric_matrix(
+    base_dir: str,
+    model_names: List[str],
+    view_numbers: List[int],
+    metric: str = "psnr",
+    *,
+    higher_is_better: bool = True,
+    return_type: str = "rank",  # "rank" or "value"
+    drop_if_missing: bool = False,
+) -> Dict[str, Dict[int, Optional[float]]]:
+    """
+    Return a matrix of either ranks or raw metric values.
+
+    return_type = "rank" → 1 is best
+    return_type = "value" → shows raw PSNR/SSIM/etc.
+    """
+    assert return_type in ("rank", "value")
+
+    scores_by_view: Dict[int, List[Tuple[str, float]]] = defaultdict(list)
+    for model in model_names:
+        for fp in generate_json_paths(base_dir, model, view_numbers):
+            if not os.path.exists(fp):
+                continue
+            with open(fp, "r") as f:
+                res = json.load(f).get("results", {})
+            if metric not in res:
+                continue
+            view = int(fp.split("_")[-1].split(".")[0])
+            scores_by_view[view].append((model, res[metric]))
+
+    matrix: Dict[str, Dict[int, Optional[float]]] = {
+        m: {v: None for v in view_numbers} for m in model_names
+    }
+
+    for view, mv_list in scores_by_view.items():
+        if not mv_list:
+            continue
+
+        if return_type == "rank":
+            mv_list.sort(key=lambda x: x[1], reverse=higher_is_better)
+            for rank, (model, _) in enumerate(mv_list, start=1):
+                matrix[model][view] = rank
+            if not drop_if_missing:
+                worst_rank = len(mv_list) + 1
+                for model in set(model_names) - {m for m, _ in mv_list}:
+                    matrix[model][view] = worst_rank
+        else:  # return_type == "value"
+            for model, val in mv_list:
+                matrix[model][view] = val
+
+    return matrix
+
+
+# ------------------------ MAIN EXECUTION ------------------------
+if __name__ == "__main__":
+    stats, diffs = analyze_metrics_by_view(
+        BASE_DIR, VANILLA_MODELS, VIEW_NUMS, METRIC, return_diffs=True
+    )
+
+    print("Per-view stats:")
+    for v in sorted(stats):
+        s = stats[v]
+        print(
+            f"{v:4d}: max={s['max']['value']:.4f} ({s['max']['model']}) "
+            f"min={s['min']['value']:.4f} ({s['min']['model']}) "
+            f"mean={s['mean']:.4f}"
+        )
+
+    print("\nSpans (max-min) descending:")
+    for v, span, max_m, min_m in diffs:
+        print(f"view {v:4d}: span={span:.4f}   max→{max_m}  min→{min_m}")
+
+    leaderboard = mean_rank_across_views(
+        BASE_DIR, ALL_MODELS, VIEW_NUMS, METRIC, higher_is_better=HIGHER_IS_BETTER
+    )
+    print("\nLeaderboard (mean rank across views):")
+    for model, mr in leaderboard:
+        print(f"{model:20s}  mean_rank = {mr:.2f}")
+
+    llm_win, fvs_win = compare_fvs_vs_llm(
+        BASE_DIR, VANILLA_MODELS, VIEW_NUMS, METRIC, higher_is_better=HIGHER_IS_BETTER
+    )
+    print("\nLLM beats FVS at views :", llm_win)
+    print("FVS beats all LLMs at  :", fvs_win)
+
+    llm_beats_fvs, fvs_beats_llm = compare_baseline_vs_llm(
+        BASE_DIR,
+        ALL_MODELS,
+        VIEW_NUMS,
+        "fvs",
+        METRIC,
+        higher_is_better=HIGHER_IS_BETTER,
+    )
+    llm_beats_rs, rs_beats_llm = compare_baseline_vs_llm(
+        BASE_DIR, ALL_MODELS, VIEW_NUMS, "rs", METRIC, higher_is_better=HIGHER_IS_BETTER
+    )
+    fvs_beats_rs, rs_beats_fvs = compare_fvs_vs_rs(
+        BASE_DIR, VIEW_NUMS, METRIC, higher_is_better=HIGHER_IS_BETTER
+    )
+
+    print("\nViews where an LLM beats FVS :", llm_beats_fvs)
+    print("Views where FVS beats all LLMs:", fvs_beats_llm)
+    print("\nViews where an LLM beats RS  :", llm_beats_rs)
+    print("Views where RS beats all LLMs :", rs_beats_llm)
+    print("\nViews where FVS beats RS:", fvs_beats_rs)
+    print("Views where RS beats FVS:", rs_beats_fvs)
+
+    plot_deltas(
+        compute_llm_vs_baseline_deltas(
+            BASE_DIR,
+            ALL_MODELS,
+            VIEW_NUMS,
+            "fvs",
+            METRIC,
+            higher_is_better=HIGHER_IS_BETTER,
+        ),
+        baseline_label="FVS",
+        metric=METRIC,
+    )
+
+    plot_deltas(
+        compute_llm_vs_baseline_deltas(
+            BASE_DIR,
+            ALL_MODELS,
+            VIEW_NUMS,
+            "rs",
+            METRIC,
+            higher_is_better=HIGHER_IS_BETTER,
+        ),
+        baseline_label="RS",
+        metric=METRIC,
+    )
+
+    plot_rs_vs_fvs(
+        compute_rs_minus_fvs(
+            BASE_DIR, VIEW_NUMS, metric=METRIC, higher_is_better=HIGHER_IS_BETTER
+        ),
+        metric=METRIC,
+    )
+
+    rank_matrix = compute_rank_matrix(
+        BASE_DIR,
+        ALL_MODELS,
+        VIEW_NUMS,
+        METRIC,
+        higher_is_better=HIGHER_IS_BETTER,
+        drop_if_missing=False,
+    )
+
+    latex_code = rank_matrix_to_latex(rank_matrix, VIEW_NUMS)
+    print(latex_code)
+
+    psnr_matrix = compute_metric_matrix(
+        BASE_DIR,
+        ALL_MODELS,
+        VIEW_NUMS,
+        metric=METRIC,
+        return_type=RETURN_TYPE,
+        higher_is_better=True,
+    )
+    latex_code = rank_matrix_to_latex(psnr_matrix, VIEW_NUMS)
+    print("\n", latex_code)
