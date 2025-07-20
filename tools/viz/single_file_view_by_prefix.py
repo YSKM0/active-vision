@@ -9,6 +9,7 @@ PATH = "/local/home/hanwliu/table/dataset/train2/nerfdirector/fvs_test/1/150/tra
 PREFIX_COLOURS = {"train": (255, 0, 0), "val": (0, 0, 255), "eval": (0, 255, 0)}
 SHOW_FRUSTUM = True
 FALLBACK_GREY = (160, 160, 160)
+SHOW_UNMATCHED = False
 
 
 def run(path: str | pathlib.Path):
@@ -21,6 +22,8 @@ def run(path: str | pathlib.Path):
     srv.scene.world_axes.visible = False
 
     for pre, frs in grouped.items():
+        if pre not in PREFIX_COLOURS and not SHOW_UNMATCHED:
+            continue
         colour = PREFIX_COLOURS.get(pre, FALLBACK_GREY)
         f_objs, fr_objs = add_cameras(srv, frs, colour, pre, show_frustum=SHOW_FRUSTUM)
         for o in (*f_objs, *fr_objs):
