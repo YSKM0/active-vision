@@ -68,6 +68,12 @@ def parse_args():
         type=str,
         help="Path to transforms_test.json for evaluation",
     )
+    parser.add_argument(
+        "--split_mode",
+        default="fixed",
+        choices=["fixed", "random"],
+        help="Split mode for val/test: 'fixed' uses fixed test range; 'random' samples from all cameras",
+    )
 
     # Farthest-view (FVS) sampling options
     parser.add_argument(
@@ -315,18 +321,58 @@ if __name__ == "__main__":
         args.viz_dir = os.path.join(args.checkpoint_dir, "viz")
     os.makedirs(args.viz_dir, exist_ok=True)
 
-    # candidate pool (training cameras only)
-    all_candidates = get_camera_centers(args.all_train_transform)
-    is_available = np.ones(len(all_candidates), dtype=bool)
+    # Training/Test/Val Set Selection
+    if args.split_mode == "random":
+        # Random split from full all_transform.json
+        all_camera_centers = get_camera_centers(args.all_transform)
+        total_indices = np.arange(len(all_camera_centers))
 
-    # val / test split
-    start, end = len(is_available) + 1, TEST_FRAME_END
-    if args.use_val:
-        val_sz = int((end - start + 1) * 0.5)
-        val_set, test_set = split_random_subset(start, end, val_sz, seed=42)
+        if args.use_val:
+            val_sz = int(len(total_indices) * 0.125)
+            val_set, remaining = split_random_subset(
+                0, len(total_indices) - 1, val_sz, seed=42
+            )
+            val_set = total_indices[val_set]
+
+            test_sz = int(len(total_indices) * 0.125)
+            test_rel_indices, _ = split_random_subset(
+                0, len(remaining) - 1, test_sz, seed=43
+            )
+            test_set = total_indices[remaining[test_rel_indices]]
+
+            train_indices = np.setdiff1d(
+                total_indices, np.concatenate([val_set, test_set])
+            )
+
+        else:
+            val_set = np.array([])
+            test_sz = int(len(total_indices) * 0.1)
+            test_set, _ = split_random_subset(
+                0, len(total_indices) - 1, test_sz, seed=42
+            )
+            test_set = total_indices[test_set]
+            train_indices = np.setdiff1d(total_indices, test_set)
+
+        all_candidates = all_camera_centers[train_indices]
+        is_available = np.ones(len(all_candidates), dtype=bool)
+
+    elif args.split_mode == "fixed":
+        # val/test are selected from range after training cameras
+        all_candidates = get_camera_centers(args.all_train_transform)
+        is_available = np.ones(len(all_candidates), dtype=bool)
+
+        start, end = len(is_available) + 1, TEST_FRAME_END
+        if args.use_val:
+            val_sz = int((end - start + 1) * 0.5)
+            val_set, test_set = split_random_subset(start, end, val_sz, seed=42)
+        else:
+            val_set = np.array([])
+            test_set = np.arange(start, end + 1)
+
+        train_indices = np.arange(len(all_candidates))  # full range of train
+
     else:
-        val_set = np.array([])
-        test_set = np.arange(start, end + 1)
+        raise ValueError("Unknown split_mode. Use 'legacy' or 'random'.")
 
     # single, unified accumulator
     accumulate_indices = []
