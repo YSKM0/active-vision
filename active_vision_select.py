@@ -323,26 +323,26 @@ if __name__ == "__main__":
 
     # Training/Test/Val Set Selection
     if args.split_mode == "random":
-        # Random split from full all_transform.json
         all_camera_centers = get_camera_centers(args.all_transform)
         total_indices = np.arange(len(all_camera_centers))
 
         if args.use_val:
             val_sz = int(len(total_indices) * 0.125)
-            val_set, remaining = split_random_subset(
+            val_set, remaining_indices = split_random_subset(
                 0, len(total_indices) - 1, val_sz, seed=42
             )
             val_set = total_indices[val_set]
+            remaining = np.setdiff1d(total_indices, val_set)
 
             test_sz = int(len(total_indices) * 0.125)
-            test_rel_indices, _ = split_random_subset(
-                0, len(remaining) - 1, test_sz, seed=43
-            )
-            test_set = total_indices[remaining[test_rel_indices]]
+            test_set, _ = split_random_subset(0, len(remaining) - 1, test_sz, seed=43)
+            test_set = remaining[test_set]
 
             train_indices = np.setdiff1d(
                 total_indices, np.concatenate([val_set, test_set])
             )
+            fixed_val_set = val_set.copy()
+            fixed_test_set = test_set.copy()
 
         else:
             val_set = np.array([])
@@ -352,6 +352,8 @@ if __name__ == "__main__":
             )
             test_set = total_indices[test_set]
             train_indices = np.setdiff1d(total_indices, test_set)
+            fixed_val_set = val_set.copy()
+            fixed_test_set = test_set.copy()
 
         all_candidates = all_camera_centers[train_indices]
         is_available = np.ones(len(all_candidates), dtype=bool)
@@ -392,26 +394,27 @@ if __name__ == "__main__":
 
     print_args(args)
 
-    view_num_configs = [
-        5,
-        10,
-        15,
-        20,
-        25,
-        30,
-        40,
-        50,
-        60,
-        70,
-        80,
-        90,
-        100,
-        110,
-        120,
-        130,
-        140,
-        150,
-    ]  # list(range(1, 31)), [5,30]
+    view_num_configs = [5, 556]
+    # [
+    #     5,
+    #     10,
+    #     15,
+    #     20,
+    #     25,
+    #     30,
+    #     40,
+    #     50,
+    #     60,
+    #     70,
+    #     80,
+    #     90,
+    #     100,
+    #     110,
+    #     120,
+    #     130,
+    #     140,
+    #     150,
+    # ]  # list(range(1, 31)), [5,30]
 
     for cur_view_num in view_num_configs:
         print_log(f"Running sampling={args.sampling} view_number={cur_view_num}")
@@ -430,6 +433,7 @@ if __name__ == "__main__":
             # initial random pick
             np.random.seed(args.rep)
             new_views = np.random.randint(0, len(all_candidates), size=cur_view_num)
+            new_views_global = train_indices[new_views]
 
             accumulate_indices.extend(new_views.tolist())
             if args.sampling in ("vlm", "fvs_vlm"):
@@ -438,9 +442,9 @@ if __name__ == "__main__":
             generate_new_transform2(
                 target_transform=cur_train_json,
                 all_transform=args.all_transform,
-                train_frame_idxs=new_views,
-                val_frame_idxs=val_set,
-                test_frame_idxs=test_set,
+                train_frame_idxs=new_views_global,
+                val_frame_idxs=fixed_val_set,
+                test_frame_idxs=fixed_test_set,
                 base_image_dir=args.base_image_dir,
                 use_relative_path=args.use_rel_path,
             )
@@ -522,12 +526,13 @@ if __name__ == "__main__":
             if new_indices_this_round.size > 0:
                 accumulate_indices.extend(new_indices_this_round.tolist())
 
+            accum_global = train_indices[np.array(accumulate_indices, dtype=int)]
             generate_new_transform2(
                 target_transform=cur_train_json,
                 all_transform=args.all_transform,
-                train_frame_idxs=np.array(accumulate_indices, dtype=int),
-                val_frame_idxs=val_set,
-                test_frame_idxs=test_set,
+                train_frame_idxs=accum_global,
+                val_frame_idxs=fixed_val_set,
+                test_frame_idxs=fixed_test_set,
                 base_image_dir=args.base_image_dir,
                 use_relative_path=args.use_rel_path,
             )

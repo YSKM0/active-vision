@@ -91,43 +91,58 @@ def generate_new_transform(
 def generate_new_transform2(
     target_transform,
     all_transform,
-    train_frame_idxs=np.array([]),
-    val_frame_idxs=np.array([]),
-    test_frame_idxs=np.array([]),
+    train_frame_idxs=np.array([], dtype=int),
+    val_frame_idxs=np.array([], dtype=int),
+    test_frame_idxs=np.array([], dtype=int),
     base_image_dir=None,
     use_relative_path=False,
 ):
-    import json
-    import os
+    import json, os
 
     with open(all_transform, "r") as f:
         all_data = json.load(f)
 
     all_frames = all_data["frames"]
 
-    train_set = set(train_frame_idxs)
-    val_set = set(val_frame_idxs)
-    test_set = set(test_frame_idxs)
+    # make fast membership tests
+    train_set = set(int(i) for i in train_frame_idxs)
+    val_set = set(int(i) for i in val_frame_idxs)
+    test_set = set(int(i) for i in test_frame_idxs)
 
+    # if you're using relative paths, force it here
     if use_relative_path:
-        rel_path = "/images"  # ✅ Force this fixed relative path
+        rel_path = "/images"
 
+    out_frames = []
     for i, frame in enumerate(all_frames):
-        filename = os.path.basename(frame["file_path"])
+        fname = os.path.basename(frame["file_path"])
 
-        if i in train_set:
-            new_filename = f"train_{filename}"
-        elif i in val_set:
-            new_filename = f"val_{filename}"
+        # 1) held-out validation
+        if i in val_set:
+            prefix = "val"
+        # 2) held-out test
         elif i in test_set:
-            new_filename = f"eval_{filename}"
+            prefix = "eval"
+        # 3) everything else in train
+        elif i in train_set:
+            prefix = "train"
+        # 4) frames you never asked for
         else:
-            new_filename = filename
+            prefix = None
 
+        if prefix:
+            new_name = f"{prefix}_{fname}"
+        else:
+            new_name = fname
+
+        # rewrite the JSON path
         if base_image_dir and not use_relative_path:
-            frame["file_path"] = os.path.join(base_image_dir, new_filename)
+            frame["file_path"] = os.path.join(base_image_dir, new_name)
         else:
-            frame["file_path"] = os.path.join(rel_path, new_filename)
+            frame["file_path"] = os.path.join(rel_path, new_name)
 
+        out_frames.append(frame)
+
+    all_data["frames"] = out_frames
     with open(target_transform, "w") as f:
         json.dump(all_data, f, indent=4)
