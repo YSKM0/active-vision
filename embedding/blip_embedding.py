@@ -6,8 +6,10 @@ from PIL import Image
 from transformers import BlipProcessor, BlipModel
 
 # Set your image directory and output file path
-image_dir = "/local/home/hanwliu/table/nerfstudio/images"
-output_file = "/local/home/hanwliu/table/vlm_embedding/blip_ViTB16_embeddings.pkl"
+image_dir = "/local/home/hanwliu/wheelbarrow1/nerfstudio/images"
+output_file = (
+    "/local/home/hanwliu/wheelbarrow1/vlm_embeddings/blip_ViTB16_embeddings.pkl"
+)
 
 # Load the BLIP model and processor
 device = "cuda" if torch.cuda.is_available() else "cpu"

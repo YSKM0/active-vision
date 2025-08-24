@@ -6,8 +6,8 @@ from tqdm import tqdm
 from transformers import AutoImageProcessor, AutoModel
 
 # Configuration
-image_dir = "/local/home/hanwliu/table/nerfstudio/images"
-output_file = "/local/home/hanwliu/table/vlm_embedding/dinov2_embeddings.pkl"
+image_dir = "/local/home/hanwliu/wheelbarrow1/nerfstudio/images"
+output_file = "/local/home/hanwliu/wheelbarrow1/vlm_embeddings/dinov2_embeddings.pkl"
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 # Load the DINOv2 model and image processor

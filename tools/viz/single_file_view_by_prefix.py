@@ -5,7 +5,7 @@ from __future__ import annotations
 import collections, pathlib, viser
 from utils import load_transforms, get_prefix, add_cameras
 
-PATH = "/local/home/hanwliu/lab_record/nerfstudio/transforms.json"
+PATH = "/local/home/hanwliu/wheelbarrow1/dataset/train/nerfdirector/full/1/all/transforms.json"
 PREFIX_COLOURS = {"train": (255, 0, 0), "val": (0, 0, 255), "eval": (0, 255, 0)}
 SHOW_FRUSTUM = True
 FALLBACK_GREY = (160, 160, 160)

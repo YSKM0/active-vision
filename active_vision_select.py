@@ -45,8 +45,8 @@ def parse_args():
     parser.add_argument(
         "--sampling",
         default="fvs",
-        choices=["rs", "fvs", "vlm", "fvs_vlm"],
-        help="Sampling strategy: rs (random), fvs (farthest-view), vlm (VLM-guided), fvs_vlm (hybrid)",
+        choices=["none", "rs", "fvs", "vlm", "fvs_vlm"],
+        help="Sampling strategy:none (use all train candidates), rs (random), fvs (farthest-view), vlm (VLM-guided), fvs_vlm (hybrid)",
     )
     parser.add_argument(
         "--checkpoint_dir",
@@ -392,29 +392,63 @@ if __name__ == "__main__":
         avail_emb = np.ones(len(embeddings), dtype=bool)
         is_available_vlm = avail_emb.copy()
 
+    if args.sampling == "none":
+        print_log(
+            "Sampling mode 'none': using all training candidates without selection."
+        )
+
+        ckpt_dir = os.path.join(args.checkpoint_dir, "all")
+        os.makedirs(ckpt_dir, exist_ok=True)
+        imgs_dir = os.path.join(ckpt_dir, "images")
+        os.makedirs(imgs_dir, exist_ok=True)
+        cur_train_json = os.path.join(ckpt_dir, "transforms.json")
+
+        generate_new_transform2(
+            target_transform=cur_train_json,
+            all_transform=args.all_transform,
+            train_frame_idxs=train_indices,
+            val_frame_idxs=fixed_val_set,
+            test_frame_idxs=fixed_test_set,
+            base_image_dir=args.base_image_dir,
+            use_relative_path=args.use_rel_path,
+        )
+
+        if args.copy_images:
+            # Use the *same* source JSON that the indices refer to
+            src_transform_for_copy = (
+                args.all_train_transform
+                if args.split_mode == "fixed"
+                else args.all_transform
+            )
+            copy_sampled_images(
+                src_transform_for_copy,
+                np.array(train_indices, dtype=int),
+                imgs_dir,
+                args.base_image_dir,
+            )
+
+        print_log("Completed 'none' mode configuration. Exiting.")
+        exit(0)
+
     print_args(args)
 
-    view_num_configs = [5, 556]
-    # [
-    #     5,
-    #     10,
-    #     15,
-    #     20,
-    #     25,
-    #     30,
-    #     40,
-    #     50,
-    #     60,
-    #     70,
-    #     80,
-    #     90,
-    #     100,
-    #     110,
-    #     120,
-    #     130,
-    #     140,
-    #     150,
-    # ]  # list(range(1, 31)), [5,30]
+    view_num_configs = [
+        5,
+        10,
+        15,
+        20,
+        25,
+        30,
+        40,
+        50,
+        60,
+        70,
+        80,
+        90,
+        100,
+        110,
+        120,
+    ]  # list(range(1, 31)), [5,30]
 
     for cur_view_num in view_num_configs:
         print_log(f"Running sampling={args.sampling} view_number={cur_view_num}")

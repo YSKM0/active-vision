@@ -6,8 +6,8 @@ from PIL import Image
 from tqdm import tqdm
 
 
-image_dir = "/local/home/hanwliu/table/nerfstudio/images"
-output_file = "/local/home/hanwliu/table/vlm_embedding/clip_ViTL14_336px_embeddings.pkl"  # clip_ViTL14_embeddings.pkl" clip_ViTL14_336px_embeddings.pkl"
+image_dir = "/local/home/hanwliu/wheelbarrow1/nerfstudio/images"
+output_file = "/local/home/hanwliu/wheelbarrow1/vlm_embeddings/clip_ViTL14_336px_embeddings.pkl"  # clip_ViTL14_embeddings.pkl" clip_ViTL14_336px_embeddings.pkl"
 
 # Load the CLIP model and preprocessing
 device = "cuda" if torch.cuda.is_available() else "cpu"

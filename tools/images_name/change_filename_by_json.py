@@ -63,7 +63,7 @@ def rename_images_to_match_transforms(transform_path, image_dir):
     print(f"\n✅ Completed renaming {len(renamed_files)} files.")
 
 
-transform_path = "/local/home/hanwliu/lab_record/nerfstudio/transforms.json"
-image_dir = "/local/home/hanwliu/lab_record/nerfstudio/images_4"
+transform_path = "/local/home/hanwliu/wheelbarrow1/dataset/train/nerfdirector/full/1/all/transforms.json"
+image_dir = "/local/home/hanwliu/wheelbarrow1/nerfstudio/images_4"
 
 rename_images_to_match_transforms(transform_path, image_dir)
